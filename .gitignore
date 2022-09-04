@@ -1,0 +1,17 @@
+.classpath
+.project
+.settings
+.wtpmodules
+*.ipr
+*.iws
+*.iml
+target/
+bin/
+*.log
+.deployables
+.clover
+META-INF/
+Dockerfile
+Jenkinsfile
+
+.idea
