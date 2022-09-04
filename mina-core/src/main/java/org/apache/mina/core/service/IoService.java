@@ -35,6 +35,11 @@ import org.apache.mina.core.session.IoSessionDataStructureFactory;
  * Base interface for all {@link IoAcceptor}s and {@link IoConnector}s
  * that provide I/O service and manage {@link IoSession}s.
  *
+ * IoService：用于描述我们的客户端和服务端接口，其子类是 connector 和 acceptor，分别用于描述我们的客户端和服务端。
+ * IoService 的职责：监听器管理、IO 处理程序、IO 会话管理、过滤器链管理、统计管理
+ *
+ *
+ *
  * @author <a href="http://mina.apache.org">Apache MINA Project</a>
  */
 public interface IoService {
@@ -73,6 +78,8 @@ public interface IoService {
     boolean isDisposed();
 
     /**
+     * 在关闭连接时所调用的方法
+     *
      * Releases any resources allocated by this service.  Please note that
      * this method might block as long as there are any sessions managed by
      * this service.
@@ -96,6 +103,8 @@ public interface IoService {
     IoHandler getHandler();
 
     /**
+     * 设置我们真正的业务处理器
+     *
      * Sets the handler which will handle all connections managed by this service.
      * 
      * @param handler The IoHandler to use
@@ -116,6 +125,8 @@ public interface IoService {
     int getManagedSessionCount();
 
     /**
+     * 获得会话的配置信息
+     *
      * @return the default configuration of the new {@link IoSession}s
      * created by this service.
      */
@@ -141,6 +152,8 @@ public interface IoService {
     void setFilterChainBuilder(IoFilterChainBuilder builder);
 
     /**
+     * 获得过滤器链
+     *
      * A shortcut for <tt>( ( DefaultIoFilterChainBuilder ) </tt>{@link #getFilterChainBuilder()}<tt> )</tt>.
      * Please note that the returned object is not a <b>real</b> {@link IoFilterChain}
      * but a {@link DefaultIoFilterChainBuilder}.  Modifying the returned builder

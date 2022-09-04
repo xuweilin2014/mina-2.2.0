@@ -36,6 +36,8 @@ import org.apache.mina.core.write.WriteRequest;
 import org.apache.mina.core.write.WriteRequestQueue;
 
 /**
+ * IoSession：描述的是客户端和服务端连接的描述，常常用于接受和发送数据
+ *
  * <p>
  *   A handle which represents connection between two end-points regardless of
  *   transport types.

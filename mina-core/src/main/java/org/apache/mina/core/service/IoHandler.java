@@ -28,6 +28,8 @@ import org.apache.mina.filter.FilterEvent;
 /**
  * Handles all I/O events fired by MINA.
  *
+ * IoHandler：就是我们的业务对象，自定义的 Handler 需要继承 IoHandlerAdapter
+ *
  * @author <a href="http://mina.apache.org">Apache MINA Project</a>
  *
  * @see IoHandlerAdapter

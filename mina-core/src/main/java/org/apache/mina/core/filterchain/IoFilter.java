@@ -27,6 +27,8 @@ import org.apache.mina.filter.FilterEvent;
 import org.apache.mina.filter.util.ReferenceCountingFilter;
 
 /**
+ * IoFilter：提供数据的过滤工作，包括编解码，日志信息等的过滤
+ *
  * A filter which intercepts {@link IoHandler} events like Servlet
  * filters.  Filters can be used for these purposes:
  * <ul>

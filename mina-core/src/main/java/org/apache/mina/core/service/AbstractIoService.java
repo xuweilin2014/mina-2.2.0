@@ -53,9 +53,16 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Base implementation of {@link IoService}s.
+ *
+ * AbstractIoService 实现了 IoService 接口，实现了以下功能：
+ * 1.添加默认过滤器
+ * 2.默认处理实现
+ * 3.设置了 IoHandler
+ * 4.维护 DefaultIoSessionDataStructureFactory
+ * 5.如果默认不提供，则创建一个 Executor
+ * 6.添加默认的异常监控器
  * 
- * An instance of IoService contains an Executor which will handle the incoming
- * events.
+ * An instance of IoService contains an Executor which will handle the incoming events.
  *
  * @author <a href="http://mina.apache.org">Apache MINA Project</a>
  */

@@ -818,7 +818,6 @@
           <encoding>UTF-8</encoding>
           <debug>true</debug>
           <optimize>true</optimize>
-          <showDeprecations>true</showDeprecations>
         </configuration>
       </plugin>
 
@@ -856,7 +855,9 @@
         <extensions>true</extensions>
         <configuration>
           <instructions>
+            <!--suppress UnresolvedMavenProperty -->
             <Bundle-SymbolicName>${symbolicName}</Bundle-SymbolicName>
+            <!--suppress UnresolvedMavenProperty -->
             <Export-Package>${exportedPackage}.*;version=${project.version}</Export-Package>
           </instructions>
         </configuration>

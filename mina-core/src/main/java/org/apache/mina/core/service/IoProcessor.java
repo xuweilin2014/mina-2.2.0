@@ -23,6 +23,8 @@ import org.apache.mina.core.session.IoSession;
 import org.apache.mina.core.write.WriteRequest;
 
 /**
+ * IoProcessor：多线程环境用来处理我们的连接请求流程
+ *
  * An internal interface to represent an 'I/O processor' that performs
  * actual I/O operations for {@link IoSession}s.  It abstracts existing
  * reactor frameworks such as Java NIO once again to simplify transport
