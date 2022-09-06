@@ -1,4 +1,4 @@
-package org.apache.mina.test.test1;
+package org.apache.mina.test.test;
 
 import org.apache.mina.core.service.IoHandlerAdapter;
 import org.apache.mina.core.session.IoSession;

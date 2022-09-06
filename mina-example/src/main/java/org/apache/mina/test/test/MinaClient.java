@@ -1,4 +1,4 @@
-package org.apache.mina.test.test1;
+package org.apache.mina.test.test;
 
 import org.apache.mina.core.future.ConnectFuture;
 import org.apache.mina.core.service.IoConnector;
@@ -10,7 +10,6 @@ import org.apache.mina.transport.socket.nio.NioSocketConnector;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
 public class MinaClient {
@@ -28,6 +27,8 @@ public class MinaClient {
                         StandardCharsets.UTF_8, LineDelimiter.WINDOWS, LineDelimiter.WINDOWS
                 )
         ));
+        // 添加自定义的 IoFilter
+        connector.getFilterChain().addLast("client-filter", new MyClientFilter());
         connector.setHandler(new MyClientHandler());
         ConnectFuture future = connector.connect(new InetSocketAddress(host, port));
         // Wait until the connection attempt is finished.
