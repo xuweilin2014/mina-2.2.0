@@ -49,8 +49,8 @@ public interface IoService {
     TransportMetadata getTransportMetadata();
 
     /**
-     * Adds an {@link IoServiceListener} that listens any events related with
-     * this service.
+     * Adds an {@link IoServiceListener} that listens any events related with this service.
+     *
      * 
      * @param listener The listener to add
      */

@@ -23,6 +23,7 @@ import org.apache.mina.core.session.IoSession;
 
 /**
  * A default implementation of {@link WriteFuture}.
+ * DefaultWriteFuture 表示写操作的异步
  *
  * @author <a href="http://mina.apache.org">Apache MINA Project</a>
  */
@@ -65,6 +66,9 @@ public class DefaultWriteFuture extends DefaultIoFuture implements WriteFuture {
 
     /**
      * {@inheritDoc}
+     * DefaultWriteFuture 继承了 DefaultFuture，对于不同类型的 future，其 value 值可能不同。
+     * 对于 writeFuture 而言，其 value 只可能是 Boolean 或者 Throwable 两种（只有 setWritten 和
+     * setException 两个方法），但是这两种都表示异步操作的完成
      */
     @Override
     public boolean isWritten() {
@@ -72,7 +76,7 @@ public class DefaultWriteFuture extends DefaultIoFuture implements WriteFuture {
             Object v = getValue();
             
             if (v instanceof Boolean) {
-                return ((Boolean) v).booleanValue();
+                return (Boolean) v;
             }
         }
         

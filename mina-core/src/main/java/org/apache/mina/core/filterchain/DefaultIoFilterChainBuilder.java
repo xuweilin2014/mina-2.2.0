@@ -64,6 +64,7 @@ public class DefaultIoFilterChainBuilder implements IoFilterChainBuilder {
     private static final Logger LOGGER = LoggerFactory.getLogger(DefaultIoFilterChainBuilder.class);
 
     /** The list of filters */
+    // entries 是 filter 的 list
     private final List<Entry> entries;
 
     /**
@@ -125,6 +126,7 @@ public class DefaultIoFilterChainBuilder implements IoFilterChainBuilder {
      */
     public Entry getEntry(Class<? extends IoFilter> filterType) {
         for (Entry e : entries) {
+            // A.isAssignableFrom(B)，B 类/接口继承了 A 类/接口，或者 A 类和 B 类是否相等
             if (filterType.isAssignableFrom(e.getFilter().getClass())) {
                 return e;
             }
@@ -218,6 +220,7 @@ public class DefaultIoFilterChainBuilder implements IoFilterChainBuilder {
 
     /**
      * @see IoFilterChain#addFirst(String, IoFilter)
+     * 将 name 和 filter 创建成一个新的 entry，然后将这个新的 entry 保存到 filterChain 中第一个位置
      * 
      * @param name The filter's name
      * @param filter The filter to add
@@ -228,6 +231,7 @@ public class DefaultIoFilterChainBuilder implements IoFilterChainBuilder {
 
     /**
      * @see IoFilterChain#addLast(String, IoFilter)
+     * 将 name 和 filter 创建成一个新的 entry，然后将这个新的 entry 保存到 filterChain 中最后一个位置
      * 
      * @param name The filter's name
      * @param filter The filter to add
@@ -238,7 +242,8 @@ public class DefaultIoFilterChainBuilder implements IoFilterChainBuilder {
 
     /**
      * @see IoFilterChain#addBefore(String, String, IoFilter)
-     * 
+     * 将 name 和 filter 创建成一个新的 entry，然后将这个新的 entry 保存到 filterChain 中
+     *
      * @param baseName The filter baseName
      * @param name The filter's name
      * @param filter The filter to add
@@ -264,12 +269,16 @@ public class DefaultIoFilterChainBuilder implements IoFilterChainBuilder {
      * @param filter The filter to add
      */
     public synchronized void addAfter(String baseName, String name, IoFilter filter) {
+        // baseName 表示当前 entry 的 name
+        // 检查当前 IoFilterChain 中是否存在 baseName 的 entry filter
         checkBaseName(baseName);
 
         for (ListIterator<Entry> i = entries.listIterator(); i.hasNext();) {
+            // i.next() => cursor + 1
             Entry base = i.next();
             
             if (base.getName().equals(baseName)) {
+                // i.nextIndex() => return cursor，所以 nextIndex() 返回的就是当前 entry 下一个位置的 index
                 register(i.nextIndex(), new EntryImpl(name, filter));
                 break;
             }
@@ -278,7 +287,9 @@ public class DefaultIoFilterChainBuilder implements IoFilterChainBuilder {
 
     /**
      * @see IoFilterChain#remove(String)
-     * 
+     *
+     * 根据 name 从当前 filterChain 中删除对应的 filter
+     *
      * @param name The Filter's name to remove from the list of Filters
      * @return The removed IoFilter
      */
@@ -291,8 +302,9 @@ public class DefaultIoFilterChainBuilder implements IoFilterChainBuilder {
             Entry e = i.next();
             
             if (e.getName().equals(name)) {
+                // 之前调用 i.next() 会使得 cursor + 1，即指针后移
+                // 因此需要调用 i.previousIndex() 返回前一个 cursor 指针
                 entries.remove(i.previousIndex());
-                
                 return e.getFilter();
             }
         }
@@ -302,6 +314,8 @@ public class DefaultIoFilterChainBuilder implements IoFilterChainBuilder {
 
     /**
      * @see IoFilterChain#remove(IoFilter)
+     *
+     * 根据 filter 实例，从当前 filterChain 中删除对应的 filter
      * 
      * @param filter The Filter we want to remove from the list of Filters
      * @return The removed IoFilter
@@ -326,6 +340,8 @@ public class DefaultIoFilterChainBuilder implements IoFilterChainBuilder {
 
     /**
      * @see IoFilterChain#remove(Class)
+     *
+     * 根据 filter 类实例，从当前 filterChain 中删除对应的 filter
      * 
      * @param filterType The FilterType we want to remove from the list of Filters
      * @return The removed IoFilter
@@ -410,6 +426,10 @@ public class DefaultIoFilterChainBuilder implements IoFilterChainBuilder {
     }
 
     /**
+     * 先把当前类中的 entries 集合清空，然后再把参数中的 filters 传入到 entries 中，
+     * filters 这个 map 集合是一个 ordered map，也就是有序的，即 filter 之间的顺序关系
+     * 必须要保证
+     *
      * Clears the current list of filters and adds the specified
      * filter mapping to this builder.  Please note that you must specify
      * a {@link Map} implementation that iterates the filter mapping in the
@@ -424,8 +444,7 @@ public class DefaultIoFilterChainBuilder implements IoFilterChainBuilder {
         }
 
         if (!isOrderedMap(filters)) {
-            throw new IllegalArgumentException("filters is not an ordered map. Please try "
-                    + LinkedHashMap.class.getName() + ".");
+            throw new IllegalArgumentException("filters is not an ordered map. Please try " + LinkedHashMap.class.getName() + ".");
         }
 
         filters = new LinkedHashMap<>(filters);
@@ -587,6 +606,7 @@ public class DefaultIoFilterChainBuilder implements IoFilterChainBuilder {
         return buf.toString();
     }
 
+    // 检查 baseName 在 filterChain 中是否存在
     private void checkBaseName(String baseName) {
         if (baseName == null) {
             throw new IllegalArgumentException("baseName");
@@ -598,10 +618,12 @@ public class DefaultIoFilterChainBuilder implements IoFilterChainBuilder {
     }
 
     private void register(int index, Entry e) {
+        // e 是要新加入 IoFilterChain 的 entry，检查 IoFilterChain 中是否有相同名字的 filter
         if (contains(e.getName())) {
             throw new IllegalArgumentException("Other filter is using the same name: " + e.getName());
         }
 
+        // 将 entry 保存到 entries 数组中 index 的位置
         entries.add(index, e);
     }
 
@@ -657,10 +679,13 @@ public class DefaultIoFilterChainBuilder implements IoFilterChainBuilder {
         }
 
         /**
+         * Adds the specified filter with the specified name just after this entry.
          * {@inheritDoc}
          */
         @Override
         public void addAfter(String name, IoFilter filter) {
+            // 由于 EntryImpl 为 DefaultIoFilterChainBuilder 的内部类，表达式 OuterClass.this 表示外围类引用
+            // 这里调用 DefaultIoFilterChainBuilder 的 addAfter 方法将 filter 参数添加到当前 entry 之后
             DefaultIoFilterChainBuilder.this.addAfter(getName(), name, filter);
         }
 

@@ -24,7 +24,11 @@ import java.util.Set;
 /**
  * Stores the user-defined attributes which is provided per {@link IoSession}.
  * All user-defined attribute accesses in {@link IoSession} are forwarded to
- * the instance of {@link IoSessionAttributeMap}. 
+ * the instance of {@link IoSessionAttributeMap}.
+ *
+ * 在每一个 NioSession 中，都有一个 DefaultIoSessionAttributeMap，它实现了 IoSessionAttributeMap 接口。
+ * 在 AttributeMap 中，key 一定为 AttributeKey 类型的对象，而 value 则是用户定义的任何类型的对象。可以
+ * 看成是对 ConcurrentHashMap 的简单封装
  * 
  * @author <a href="http://mina.apache.org">Apache MINA Project</a>
  */
@@ -62,7 +66,7 @@ public interface IoSessionAttributeMap {
 
     /**
      * Sets a user defined attribute if the attribute with the specified key
-     * is not set yet.  This method is same with the following code except
+     * is not set yet. This method is same with the following code except
      * that the operation is performed atomically.
      * <pre>
      * if (containsAttribute(key)) {

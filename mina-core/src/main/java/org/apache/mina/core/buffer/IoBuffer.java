@@ -40,6 +40,9 @@ import java.util.Set;
 import org.apache.mina.core.session.IoSession;
 
 /**
+ * IoBuffer：基于 java NIO 中的 ByteBuffer 做了封装，用户操作缓冲区中的数据，包括基本数据类型以及字节
+ * 数组和一些对象，其本质就是一个可动态扩展的 byte 数组。
+ *
  * A byte buffer used by MINA applications.
  * <p>
  * This is a replacement for {@link ByteBuffer}. Please refer to
@@ -206,8 +209,9 @@ public abstract class IoBuffer implements Comparable<IoBuffer> {
     }
 
     /**
-     * Returns the direct or heap buffer which is capable to store the specified
-     * amount of bytes.
+     * Returns the direct or heap buffer which is capable to store the specified amount of bytes.
+     *
+     * 使用指定的大小开辟缓冲区的空间
      * 
      * @param capacity the capacity of the buffer
      * @return a IoBuffer which can hold up to capacity bytes
@@ -409,6 +413,8 @@ public abstract class IoBuffer implements Comparable<IoBuffer> {
 
     /**
      * Turns on or off <tt>autoExpand</tt>.
+     *
+     * 可以设置是否支持动态的扩展
      * 
      * @param autoExpand The flag value to set
      * @return The modified IoBuffer instance
@@ -696,6 +702,8 @@ public abstract class IoBuffer implements Comparable<IoBuffer> {
 
     /**
      * @see java.nio.Buffer#flip()
+     *
+     * 让 limit = position，position = 0；为我们读取缓冲区的数据做好准备，一般在发送数据之前调用
      * 
      * @return the modified IoBuffer
      * 
@@ -712,6 +720,8 @@ public abstract class IoBuffer implements Comparable<IoBuffer> {
 
     /**
      * @see java.nio.Buffer#remaining()
+     *
+     * 返回的是缓冲区可以读取的数据的大小，limit -position 的值
      * 
      * @return The remaining bytes in the buffer
      */
@@ -719,6 +729,8 @@ public abstract class IoBuffer implements Comparable<IoBuffer> {
 
     /**
      * @see java.nio.Buffer#hasRemaining()
+     *
+     * 缓冲区中是否有数据可以读，boolean 是关于 position <= limit = true，否则返回 false
      * 
      * @return <tt>true</tt> if there are some remaining bytes in the buffer
      */

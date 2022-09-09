@@ -27,7 +27,10 @@ import org.apache.mina.filter.FilterEvent;
 import org.apache.mina.filter.util.ReferenceCountingFilter;
 
 /**
- * IoFilter：提供数据的过滤工作，包括编解码，日志信息等的过滤
+ * IoFilter：提供数据的过滤工作，包括编解码，日志信息等的过滤，具体来说就是对应用程序和网络传输，
+ * 即二进制数据和对象之间的相互转化，有相应的解码和编码器，除此之外，还可以做日志以及消息确认等功能。
+ *
+ * 在自定义的 handler 真正接收和发送数据之前，都需要调用相应的过滤器来进行处理
  *
  * A filter which intercepts {@link IoHandler} events like Servlet
  * filters.  Filters can be used for these purposes:

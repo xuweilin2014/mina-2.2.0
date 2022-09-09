@@ -1,5 +1,6 @@
 package org.apache.mina.test.test;
 
+import org.apache.mina.core.future.WriteFuture;
 import org.apache.mina.core.service.IoHandlerAdapter;
 import org.apache.mina.core.session.IdleStatus;
 import org.apache.mina.core.session.IoSession;
@@ -42,7 +43,8 @@ public class MyServerHandler extends IoHandlerAdapter {
             return;
         }
         Date date = new Date();
-        session.write(date);
+        WriteFuture writeFuture = session.write(date);
+        writeFuture.await();
     }
 
     @Override

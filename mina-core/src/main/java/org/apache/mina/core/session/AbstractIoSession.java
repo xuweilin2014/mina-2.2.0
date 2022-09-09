@@ -288,7 +288,7 @@ public abstract class AbstractIoSession implements IoSession {
     /**
      * Set the scheduledForFLush flag. As we may have concurrent access to this
      * flag, we compare and set it in one call.
-     * 
+     *
      * @param schedule
      *            the new value to set if not already set.
      * @return true if the session flag has been set, and if it wasn't set
@@ -482,8 +482,7 @@ public abstract class AbstractIoSession implements IoSession {
         if (readyReadFutures == null) {
             readyReadFutures = new ConcurrentLinkedQueue<>();
 
-            Queue<ReadFuture> oldReadyReadFutures = (Queue<ReadFuture>) setAttributeIfAbsent(READY_READ_FUTURES_KEY,
-                    readyReadFutures);
+            Queue<ReadFuture> oldReadyReadFutures = (Queue<ReadFuture>) setAttributeIfAbsent(READY_READ_FUTURES_KEY, readyReadFutures);
             
             if (oldReadyReadFutures != null) {
                 readyReadFutures = oldReadyReadFutures;
@@ -502,8 +501,7 @@ public abstract class AbstractIoSession implements IoSession {
         if (waitingReadyReadFutures == null) {
             waitingReadyReadFutures = new ConcurrentLinkedQueue<>();
 
-            Queue<ReadFuture> oldWaitingReadyReadFutures = (Queue<ReadFuture>) setAttributeIfAbsent(
-                    WAITING_READ_FUTURES_KEY, waitingReadyReadFutures);
+            Queue<ReadFuture> oldWaitingReadyReadFutures = (Queue<ReadFuture>) setAttributeIfAbsent(WAITING_READ_FUTURES_KEY, waitingReadyReadFutures);
             
             if (oldWaitingReadyReadFutures != null) {
                 waitingReadyReadFutures = oldWaitingReadyReadFutures;
@@ -528,15 +526,15 @@ public abstract class AbstractIoSession implements IoSession {
             throw new IllegalArgumentException("Trying to write a null message : not allowed");
         }
 
-        // We can't send a message to a connected session if we don't have
-        // the remote address
+        // We can't send a message to a connected session if we don't have the remote address
         if (!getTransportMetadata().isConnectionless() && (remoteAddress != null)) {
             throw new UnsupportedOperationException();
         }
 
-        // If the session has been closed or is closing, we can't either
-        // send a message to the remote side. We generate a future
-        // containing an exception.
+        // If the session has been closed or is closing, we can't either send a message to the remote side.
+        // We generate a future containing an exception.
+        // 如果连接已经关闭了，创建一个 WriteFuture，然后把 WriteToClosedSessionException 异常对象设置到 WriteFuture 对象中
+        // 如果用户调用返回的 future 对象的 await 方法的话，就会直接返回
         if (isClosing() || !isConnected()) {
             WriteFuture future = new DefaultWriteFuture(this);
             WriteRequest request = new DefaultWriteRequest(message, future, remoteAddress);
@@ -550,6 +548,8 @@ public abstract class AbstractIoSession implements IoSession {
         // TODO: remove this code as soon as we use InputStream
         // instead of Object for the message.
         try {
+            // 如果要发送的 message 对象是 IoBuffer 类型的，但是 buffer 的 position 和 limit 相等（说明没有多余的数据发送）
+            // 直接抛出异常，有可能是忘记调用 flip 方法了
             if ((message instanceof IoBuffer) && !((IoBuffer) message).hasRemaining()) {
                 // Nothing to write : probably an error in the user code
                 throw new IllegalArgumentException("message is empty. Forgot to call flip()?");
@@ -562,15 +562,20 @@ public abstract class AbstractIoSession implements IoSession {
                 message = new FilenameFileRegion(file, openedFileChannel, 0, openedFileChannel.size());
             }
         } catch (IOException e) {
+            // 如果发生了异常，则直接创建一个 newNotWrittenFuture 对象，并且设置异常结果到其中，
+            // 用户调用返回的 future 对象的 await 方法的话，就会直接返回
             ExceptionMonitor.getInstance().exceptionCaught(e);
             return DefaultWriteFuture.newNotWrittenFuture(this, e);
         }
 
         // Now, we can write the message. First, create a future
+        // 创建一个 WriteRequest 对象，以及一个 WriteFuture 对象，这个 future 对象用来表明写操作是否已经完成
         WriteFuture writeFuture = new DefaultWriteFuture(this);
         WriteRequest writeRequest = new DefaultWriteRequest(message, writeFuture, remoteAddress);
 
         // Then, get the chain and inject the WriteRequest into it
+        // 获取与当前 session 关联的 filterChain，然后 fire filterWrite 事件，将 writeRequest 通过 filterChain 发送出去，
+        // 在 headFilter 中，writeRequest 会被保存到 WriteRequestQueue 队列中
         IoFilterChain filterChain = getFilterChain();
         filterChain.fireFilterWrite(writeRequest);
 
@@ -1384,8 +1389,8 @@ public abstract class AbstractIoSession implements IoSession {
     }
 
     /**
-     * Fires a {@link IoEventType#SESSION_IDLE} event if applicable for the
-     * specified {@code session}.
+     * Fires a {@link IoEventType#SESSION_IDLE} event if applicable for the specified {@code session}.
+     * 检查 session 是否处于 BOTH_IDLE、READER_IDLE 以及 WRITER_IDLE 的状态，如果是的话，fire filterChain 中的 sessionIdle 事件
      * 
      * @param session The session that is notified
      * @param currentTime the current time (i.e. {@link System#currentTimeMillis()})
@@ -1395,18 +1400,21 @@ public abstract class AbstractIoSession implements IoSession {
                 IdleStatus.BOTH_IDLE, Math.max(session.getLastIoTime(), session.getLastIdleTime(IdleStatus.BOTH_IDLE)));
 
         notifyIdleSession0(session, currentTime, session.getConfig().getIdleTimeInMillis(IdleStatus.READER_IDLE),
-                IdleStatus.READER_IDLE,
-                Math.max(session.getLastReadTime(), session.getLastIdleTime(IdleStatus.READER_IDLE)));
+                IdleStatus.READER_IDLE, Math.max(session.getLastReadTime(), session.getLastIdleTime(IdleStatus.READER_IDLE)));
 
         notifyIdleSession0(session, currentTime, session.getConfig().getIdleTimeInMillis(IdleStatus.WRITER_IDLE),
-                IdleStatus.WRITER_IDLE,
-                Math.max(session.getLastWriteTime(), session.getLastIdleTime(IdleStatus.WRITER_IDLE)));
+                IdleStatus.WRITER_IDLE, Math.max(session.getLastWriteTime(), session.getLastIdleTime(IdleStatus.WRITER_IDLE)));
 
         notifyWriteTimeout(session, currentTime);
     }
 
-    private static void notifyIdleSession0(IoSession session, long currentTime, long idleTime, IdleStatus status,
-            long lastIoTime) {
+    /**
+     * @param idleTime idleTime 是用户在 SessionConfig 中配置的，表示此 session 空置多长时间算进入 idleStatus 状态
+     * @param status BOTH_IDLE、READER_IDLE、WRITER_IDLE 三种状态之一
+     * @param lastIoTime 上一次读（READER_IDLE）、写（WRITER_IDLE）、读或者写（BOTH_IDLE）的时间
+     */
+    private static void notifyIdleSession0(IoSession session, long currentTime, long idleTime, IdleStatus status, long lastIoTime) {
+        // 如果当前时间距离上一次 session 中的 I/O 时间大于 idleTime，就说明处于 idleStatus 的状态
         if ((idleTime > 0) && (lastIoTime != 0) && (currentTime - lastIoTime >= idleTime)) {
             session.getFilterChain().fireSessionIdle(status);
         }

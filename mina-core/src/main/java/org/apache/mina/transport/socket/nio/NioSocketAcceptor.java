@@ -51,8 +51,7 @@ import org.apache.mina.transport.socket.SocketSessionConfig;
  *
  * @author <a href="http://mina.apache.org">Apache MINA Project</a>
  */
-public class NioSocketAcceptor extends AbstractPollingIoAcceptor<NioSession, ServerSocketChannel>
-implements SocketAcceptor {
+public class NioSocketAcceptor extends AbstractPollingIoAcceptor<NioSession, ServerSocketChannel> implements SocketAcceptor {
 
     protected volatile Selector selector;
     protected volatile SelectorProvider selectorProvider = null;
@@ -68,6 +67,8 @@ implements SocketAcceptor {
     /**
      * Constructor for {@link NioSocketAcceptor} using default parameters, and
      * given number of {@link NioProcessor} for multithreading I/O operations.
+     *
+     * 构造函数可以指定多线程个数
      * 
      * @param processorCount the number of processor to create and place in a
      * {@link SimpleIoProcessorPool}
@@ -230,7 +231,7 @@ implements SocketAcceptor {
     protected ServerSocketChannel open(SocketAddress localAddress) throws Exception {
         // Creates the listening ServerSocket
 
-    SocketSessionConfig config = this.getSessionConfig();
+        SocketSessionConfig config = this.getSessionConfig();
     
         ServerSocketChannel channel = null;
 

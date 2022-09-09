@@ -168,8 +168,7 @@ public class DefaultWriteRequest implements WriteRequest {
     };
 
     /** 
-     * The original message as it was written by the IoHandler. It will be sent back
-     * in the messageSent event 
+     * The original message as it was written by the IoHandler. It will be sent back in the messageSent event
      */ 
     private final Object originalMessage;
 

@@ -68,6 +68,8 @@ public interface IoConnector extends IoService {
 
     /**
      * Sets the connect timeout in milliseconds.  The default value is 1 minute.
+     *
+     * 设置连接超时请求
      * 
      * @param connectTimeoutInMillis The time out for the connection
      */
@@ -102,6 +104,7 @@ public interface IoConnector extends IoService {
     /**
      * Connects to the {@link #setDefaultRemoteAddress(SocketAddress) default
      * remote address}.
+     *
      * 
      * @return the {@link ConnectFuture} instance which is completed when the
      *         connection attempt initiated by this call succeeds or fails.
@@ -127,6 +130,8 @@ public interface IoConnector extends IoService {
 
     /**
      * Connects to the specified remote address.
+     *
+     * 主要用于发起一个连接请求
      * 
      * @param remoteAddress The remote address to connect to
      * @return the {@link ConnectFuture} instance which is completed when the

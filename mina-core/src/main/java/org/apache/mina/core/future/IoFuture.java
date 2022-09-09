@@ -27,7 +27,10 @@ import org.apache.mina.core.session.IoSession;
  * Represents the completion of an asynchronous I/O operation on an 
  * {@link IoSession}.
  * Can be listened for completion using a {@link IoFutureListener}.
- * 
+ *
+ * Apache Mina 中的异步接口，用于异步的完成连接、读写以及关闭连接操作，并且可以注册监听器 listener，
+ * 当操作完成时，回调监听器的 operationComplete 方法
+ *
  * @author <a href="http://mina.apache.org">Apache MINA Project</a>
  */
 public interface IoFuture {

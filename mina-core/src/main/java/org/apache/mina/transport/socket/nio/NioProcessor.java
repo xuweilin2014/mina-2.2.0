@@ -48,7 +48,7 @@ public class NioProcessor extends AbstractPollingIoProcessor<NioSession> {
     /** The selector associated with this processor */
     protected Selector selector;
     
-    /** A lock used to protect concurent access to the selector */
+    /** A lock used to protect concurrent access to the selector */
     protected ReadWriteLock selectorLock = new ReentrantReadWriteLock();
 
     protected SelectorProvider selectorProvider = null;
@@ -143,6 +143,17 @@ public class NioProcessor extends AbstractPollingIoProcessor<NioSession> {
         selectorLock.readLock().lock();
         
         try {
+            /*
+             * A thread that has called the select() method which is blocked, can be made to leave the select() method,
+             * even if no channels are yet ready. This is done by having a different thread call the Selector.wakeup()
+             * method on the Selector which the first thread has called select() on. The thread waiting inside select()
+             * will then return immediately.
+             *
+             * If a different thread calls wakeup() and no thread is currently blocked inside select(), the next thread
+             * that calls select() will "wake up" immediately.
+             *
+             * 唤醒其他调用了 select() 或者 select(timeout) 方法而阻塞的线程
+             */
             selector.wakeup();
         } finally {
             selectorLock.readLock().unlock();
@@ -172,6 +183,9 @@ public class NioProcessor extends AbstractPollingIoProcessor<NioSession> {
         return new IoSessionIterator(selector.selectedKeys());
     }
 
+    /**
+     * 将 NioSession 中的 channel 注册到 selector 上，同时获取到对应的 SelectionKey，然后把 key 也保存到 NioSession 中
+     */
     @Override
     protected void init(NioSession session) throws Exception {
         SelectableChannel ch = (SelectableChannel) session.getChannel();
@@ -283,10 +297,16 @@ public class NioProcessor extends AbstractPollingIoProcessor<NioSession> {
         SelectionKey key = session.getSelectionKey();
 
         if (key == null) {
-            // The channel is not yet regisetred to a selector
+            // The channel is not yet registered to a selector
             return SessionState.OPENING;
         }
 
+        /*
+         * 每一个 NioSession 中都有一个对应的 java nio 原生的 channel，把这个 channel 注册到 selector 上之后，
+         * 会返回一个 SelectionKey 对象，在需要关闭连接时，就会调用 SelectionKey 的 cancel 方法，将其 valid 属性
+         * 设置为 false。因此当 SelectionKey 中的 valid 属性为 true 时表明当前的 NioSession 处于 OPENED 状态，
+         * 而当 valid 为 false 时，表明 NioSession 处于关闭状态。
+         */
         if (key.isValid()) {
             // The session is opened
             return SessionState.OPENED;
@@ -380,10 +400,12 @@ public class NioProcessor extends AbstractPollingIoProcessor<NioSession> {
 
     @Override
     protected int write(NioSession session, IoBuffer buf, int length) throws IOException {
+        // 如果 buffer 中字节数小于限定长度，直接发送
         if (buf.remaining() <= length) {
             return session.getChannel().write(buf.buf());
         }
 
+        // 否则，限定 limit = position + length
         int oldLimit = buf.limit();
         buf.limit(buf.position() + length);
         try {

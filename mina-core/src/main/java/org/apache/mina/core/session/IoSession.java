@@ -36,7 +36,11 @@ import org.apache.mina.core.write.WriteRequest;
 import org.apache.mina.core.write.WriteRequestQueue;
 
 /**
- * IoSession：描述的是客户端和服务端连接的描述，常常用于接受和发送数据
+ * IoSession：描述的是客户端和服务端连接的描述，常常用于接受和发送数据。并且 IoSession 可以
+ * 完成对于连接的一些管理，可以发送或者读取数据，并且可以设置我们会话的上下文信息。
+ *
+ * IoSessionConfig：提供我们对连接的配置信息的描述，比如读缓冲区大小，读和写的空闲时间，以及设置读写
+ * 超时信息等。
  *
  * <p>
  *   A handle which represents connection between two end-points regardless of
@@ -141,7 +145,9 @@ public interface IoSession {
      * will be invoked when the message is actually sent to remote peer.
      * You can also wait for the returned {@link WriteFuture} if you want
      * to wait for the message actually written.
-     * 
+     *
+     * 发送数据
+     *
      * @param message The message to write
      * @return The associated WriteFuture
      */
@@ -236,6 +242,7 @@ public interface IoSession {
 
     /**
      * Returns the value of the user-defined attribute of this session.
+     * 根据 Key 获得设置的上下文属性
      *
      * @param key the key of the attribute
      * @return <tt>null</tt> if there is no attribute with the specified key
@@ -277,6 +284,8 @@ public interface IoSession {
      * you just want to put a 'mark' attribute.  Its value is set to
      * {@link Boolean#TRUE}.
      *
+     * 设置上下文属性
+     *
      * @param key the key of the attribute
      * @return The old value of the attribute.  <tt>null</tt> if it is new.
      */
@@ -293,7 +302,7 @@ public interface IoSession {
      *     return setAttribute(key, value);
      * }
      * </pre>
-     * 
+     *
      * @param key The key of the attribute we want to set
      * @param value The value we want to set
      * @return The old value of the attribute.  <tt>null</tt> if not found.
@@ -321,6 +330,8 @@ public interface IoSession {
 
     /**
      * Removes a user-defined attribute with the specified key.
+     *
+     * 删除上下文属性
      *
      * @param key The key of the attribute we want to remove
      * @return The old value of the attribute.  <tt>null</tt> if not found.

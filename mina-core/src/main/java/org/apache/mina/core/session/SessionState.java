@@ -30,12 +30,23 @@ package org.apache.mina.core.session;
  * @author <a href="http://mina.apache.org">Apache MINA Project</a>
  */
 public enum SessionState {
-    /** Session being created, not yet completed */
+    /**
+     * Session being created, not yet completed
+     * OPENING 表示当前这个 NioSession 刚刚创建好，但是还没有注册到 selector 上
+     */
     OPENING, 
     
-    /** Opened session */
+    /**
+     * Opened session
+     * OPENED 表示这个 NioSession 已经创建完毕，并且已经注册到了 selector 上
+     */
     OPENED, 
     
-    /** A session being closed */
+    /**
+     * A session being closed
+     * 每一个 NioSession 中都有一个对应的 java nio 原生的 channel，把这个 channel 注册到 selector 上之后，
+     * 会返回一个 SelectionKey 对象，在需要关闭连接时，就会调用 SelectionKey 的 cancel 方法，将其 valid 属性
+     * 设置为 false，也同样表明 NioSession 处于 CLOSING 阶段
+     */
     CLOSING
 }

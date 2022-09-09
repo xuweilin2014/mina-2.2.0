@@ -490,6 +490,12 @@ public abstract class AbstractIoService implements IoService {
         executor.execute(new NamePreservingRunnable(worker, actualThreadName));
     }
 
+    /**
+     * Acceptor 在检测到新连接后，会创建一个 session，并使用 initSession 对其进行初始化
+     * @param session
+     * @param future
+     * @param sessionInitializer
+     */
     protected final void initSession(IoSession session, IoFuture future, IoSessionInitializer sessionInitializer) {
         // Update lastIoTime if needed.
         if (stats.getLastReadTime() == 0) {
@@ -505,8 +511,8 @@ public abstract class AbstractIoService implements IoService {
         // the attributeMap at last is to make sure all session properties
         // such as remoteAddress are provided to IoSessionDataStructureFactory.
         try {
-            ((AbstractIoSession) session).setAttributeMap(session.getService().getSessionDataStructureFactory()
-                    .getAttributeMap(session));
+            // 为新创建好的 NioSession 连接初始化一个 AttributeMap
+            ((AbstractIoSession) session).setAttributeMap(session.getService().getSessionDataStructureFactory().getAttributeMap(session));
         } catch (IoSessionInitializationException e) {
             throw e;
         } catch (Exception e) {
@@ -514,8 +520,8 @@ public abstract class AbstractIoService implements IoService {
         }
 
         try {
-            ((AbstractIoSession) session).setWriteRequestQueue(session.getService().getSessionDataStructureFactory()
-                    .getWriteRequestQueue(session));
+            // 为新创建好的 NioSession 连接初始化一个 WriteRequestQueue
+            ((AbstractIoSession) session).setWriteRequestQueue(session.getService().getSessionDataStructureFactory().getWriteRequestQueue(session));
         } catch (IoSessionInitializationException e) {
             throw e;
         } catch (Exception e) {
@@ -531,6 +537,7 @@ public abstract class AbstractIoService implements IoService {
             sessionInitializer.initializeSession(session, future);
         }
 
+        // finishSessionInitialization0 是一个扩展方法，用户可以继承并自定义实现此方法
         finishSessionInitialization0(session, future);
     }
 

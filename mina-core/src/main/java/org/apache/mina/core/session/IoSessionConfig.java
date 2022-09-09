@@ -39,6 +39,8 @@ public interface IoSessionConfig {
      * Sets the size of the read buffer that I/O processor allocates
      * per each read.  It's unusual to adjust this property because
      * it's often adjusted automatically by the I/O processor.
+     *
+     * 设置读缓冲区大小
      * 
      * @param readBufferSize The size of the read buffer
      */
@@ -114,6 +116,9 @@ public interface IoSessionConfig {
 
     /**
      * Sets idle time for the specified type of idleness in seconds.
+     *
+     * 设置我们的读或者写的空闲时间
+     *
      * @param status The status for which we want to set the idle time (One of READER_IDLE,
      * WRITER_IDLE or BOTH_IDLE)
      * @param idleTime The time in second to set
@@ -155,6 +160,8 @@ public interface IoSessionConfig {
     void setWriterIdleTime(int idleTime);
 
     /**
+     * 获得读写通用的空闲时间
+     *
      * @return idle time for {@link IdleStatus#BOTH_IDLE} in seconds.
      */
     int getBothIdleTime();
@@ -183,6 +190,8 @@ public interface IoSessionConfig {
 
     /**
      * Sets write timeout in seconds.
+     *
+     * 设置写超时时间
      * 
      * @param writeTimeout The timeout to set
      */

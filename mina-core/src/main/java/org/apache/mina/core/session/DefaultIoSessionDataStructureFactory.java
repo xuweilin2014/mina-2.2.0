@@ -34,7 +34,11 @@ import org.apache.mina.core.write.WriteRequestQueue;
  * that creates a new {@link HashMap}-based {@link IoSessionAttributeMap}
  * instance and a new synchronized {@link ConcurrentLinkedQueue} instance per
  * {@link IoSession}.
- * 
+ *
+ * DefaultIoSessionDataStructureFactory 是一个数据结构工厂，为每一个 NioSession 创建一个
+ * AttributeMap 对象，用来保存 AttributeKey 到 Object 的映射。同时创建一个 DefaultWriteRequestQueue，
+ * 用来保存 session 中 write 方法产生的 WriteRequest 对象
+ *
  * @author <a href="http://mina.apache.org">Apache MINA Project</a>
  */
 public class DefaultIoSessionDataStructureFactory implements IoSessionDataStructureFactory {
@@ -55,6 +59,7 @@ public class DefaultIoSessionDataStructureFactory implements IoSessionDataStruct
     }
 
     private static class DefaultIoSessionAttributeMap implements IoSessionAttributeMap {
+
         private final ConcurrentHashMap<Object, Object> attributes = new ConcurrentHashMap<>(4);
 
         /**
@@ -233,6 +238,7 @@ public class DefaultIoSessionDataStructureFactory implements IoSessionDataStruct
         public WriteRequest poll(IoSession session) {
             WriteRequest answer = q.poll();
 
+            // 如果从 DefaultWriteRequestQueue 中读取出来的是 CLOSE_REQUEST，那么就关闭掉这个 session 连接
             if (answer == AbstractIoSession.CLOSE_REQUEST) {
                 session.closeNow();
                 dispose(session);

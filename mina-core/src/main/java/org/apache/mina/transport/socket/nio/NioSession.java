@@ -32,6 +32,13 @@ import org.apache.mina.core.session.IoSession;
 
 /**
  * An {@link IoSession} which is managed by the NIO transport.
+ *
+ * 在每一个 NioSession 中，其实只包含如下四个属性：
+ *
+ * processor：被分配用来处理这个 NioSession 中 Read/Write 事件的处理器
+ * channel：java nio 中原生的 channel
+ * key：将原生的 channel 注册到 selector 上时，产生的 SelectionKey
+ * filterChain：就是这个 NioSession 中的 filter 链，发送/接收到的消息会通过 filter 链的传输
  *  
  * @author <a href="http://mina.apache.org">Apache MINA Project</a>
  */

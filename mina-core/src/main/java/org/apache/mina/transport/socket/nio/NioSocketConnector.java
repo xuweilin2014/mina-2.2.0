@@ -58,6 +58,8 @@ SocketConnector {
     }
 
     /**
+     * 构造函数指定多线程的个数
+     *
      * Constructor for {@link NioSocketConnector} with default configuration, and
      * given number of {@link NioProcessor} for multithreading I/O operations
      * @param processorCount the number of processor to create and place in a

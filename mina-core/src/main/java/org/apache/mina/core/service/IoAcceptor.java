@@ -55,6 +55,8 @@ public interface IoAcceptor extends IoService {
 
     /**
      * Returns a {@link Set} of the local addresses which are bound currently.
+     *
+     * 获得本地的 IP 地址
      * 
      * @return The Set of bound LocalAddresses
      */
@@ -143,8 +145,9 @@ public interface IoAcceptor extends IoService {
     void bind() throws IOException;
 
     /**
-     * Binds to the specified local address and start to accept incoming
-     * connections.
+     * Binds to the specified local address and start to accept incoming connections.
+     *
+     * 绑定监听端口
      *
      * @param localAddress The SocketAddress to bind to
      * 

@@ -336,6 +336,7 @@ public interface IoFilterChain {
 
     /**
      * Represents a name-filter pair that an {@link IoFilterChain} contains.
+     * Entry 中包含了 <name, filter> 这一对信息
      *
      * @author <a href="http://mina.apache.org">Apache MINA Project</a>
      */
