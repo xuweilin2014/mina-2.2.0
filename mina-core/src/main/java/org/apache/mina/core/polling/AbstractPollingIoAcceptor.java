@@ -70,6 +70,7 @@ import org.apache.mina.util.ExceptionMonitor;
  * 
  * @author <a href="http://mina.apache.org">Apache MINA Project</a>
  */
+@SuppressWarnings("ALL")
 public abstract class AbstractPollingIoAcceptor<S extends AbstractIoSession, H> extends AbstractIoAcceptor {
     /** A lock used to protect the selector to be waked up before it's created */
     private final Semaphore lock = new Semaphore(1);
@@ -201,8 +202,6 @@ public abstract class AbstractPollingIoAcceptor<S extends AbstractIoSession, H> 
      * events. If a null {@link Executor} is provided, a default one will be
      * created using {@link Executors#newCachedThreadPool()}.
      * 
-     * @see #AbstractIoService(IoSessionConfig, Executor)
-     * 
      * @param sessionConfig
      *            the default configuration for the managed {@link IoSession}
      * @param executor
@@ -230,10 +229,10 @@ public abstract class AbstractPollingIoAcceptor<S extends AbstractIoSession, H> 
 
         try {
             // Initialize the selector
+            // 在 NioSocketAcceptor 中，创建一个 selector
             init(selectorProvider);
 
-            // The selector is now ready, we can switch the
-            // flag to true so that incoming connection can be accepted
+            // The selector is now ready, we can switch the flag to true so that incoming connection can be accepted
             selectable = true;
         } catch (RuntimeException e) {
             throw e;
@@ -342,14 +341,16 @@ public abstract class AbstractPollingIoAcceptor<S extends AbstractIoSession, H> 
     protected final Set<SocketAddress> bindInternal(List<? extends SocketAddress> localAddresses) throws Exception {
         // Create a bind request as a Future operation. When the selector
         // have handled the registration, it will signal this future.
+        // 创建一个 AcceptorOperationFuture 对象，并且将其保存到 registerQueue 中，随后启动 acceptor，
+        // 由于 acceptor 实现了 runnable 接口，因此所谓启动，就是将其提交到线程池 executor 中，由线程池中
+        // 的某一个线程来具体执行 acceptor 中的事件循环
         AcceptorOperationFuture request = new AcceptorOperationFuture(localAddresses);
 
-        // adds the Registration request to the queue for the Workers
-        // to handle
+        // adds the Registration request to the queue for the Workers to handle
         registerQueue.add(request);
 
-        // creates the Acceptor instance and has the local
-        // executor kick it off.
+        // creates the Acceptor instance and has the local executor kick it off.
+        // 将 acceptor 提交到线程池中执行
         startupAcceptor();
 
         // As we just started the acceptor, we have to unblock the select()
@@ -357,13 +358,16 @@ public abstract class AbstractPollingIoAcceptor<S extends AbstractIoSession, H> 
         // registerQueue.
         try {
             lock.acquire();
-
+            // 唤醒可能阻塞在 selector 上的线程，或者下次调用 select 方法立即返回
             wakeup();
         } finally {
             lock.release();
         }
 
         // Now, we wait until this request is completed.
+        // 阻塞等待 acceptor 线程处理前面创建的 request 请求，acceptor 线程会为其中 localAddresses 中的
+        // 每一个地址 addr 创建 ServerSocketChannel，并且 bind 到 addr 上，然后注册到 selector 上监听 OP_ACCEPT 事件
+        // 如果 acceptor 处理完 request 请求，就会唤醒阻塞在 request 上的线程
         request.awaitUninterruptibly();
 
         if (request.getException() != null) {
@@ -371,8 +375,7 @@ public abstract class AbstractPollingIoAcceptor<S extends AbstractIoSession, H> 
         }
 
         // Update the local addresses.
-        // setLocalAddresses() shouldn't be called from the worker thread
-        // because of deadlock.
+        // setLocalAddresses() shouldn't be called from the worker thread because of deadlock.
         Set<SocketAddress> newLocalAddresses = new HashSet<>();
 
         for (H handle : boundHandles.values()) {
@@ -392,7 +395,6 @@ public abstract class AbstractPollingIoAcceptor<S extends AbstractIoSession, H> 
      */
     private void startupAcceptor() throws InterruptedException {
         // If the acceptor is not ready, clear the queues
-        // TODO : they should already be clean : do we have to do that ?
         if (!selectable) {
             registerQueue.clear();
             cancelQueue.clear();
@@ -449,6 +451,7 @@ public abstract class AbstractPollingIoAcceptor<S extends AbstractIoSession, H> 
             // Release the lock
             lock.release();
 
+            // selector 在创建完毕之后，就会设置 selectable 为 true，可以接受新的连接
             while (selectable) {
                 try {
                     // Process the bound sockets to this acceptor.
@@ -457,20 +460,23 @@ public abstract class AbstractPollingIoAcceptor<S extends AbstractIoSession, H> 
                     // listen on. We do that before the select because 
                     // the registerQueue containing the new handler is
                     // already updated at this point.
+                    // 从 registerQueue 中获取到注册请求 request，并且从 request 中获取需要监听的地址列表，
+                    // 然后为每一个地址 addr 创建一个 ServerSocketChannel，然后将其 bind 到 addr 上，监听 OP_ACCEPT 事件，
+                    // 即等待此 addr 上是否有客户端想建立连接。最后返回注册在 selector 上的连接数。
                     nHandles += registerHandles();
 
-                    // Detect if we have some keys ready to be processed
-                    // The select() will be woke up if some new connection
-                    // have occurred, or if the selector has been explicitly
+                    // Detect if we have some keys ready to be processed. The select() will be woke up
+                    // if some new connection have occurred, or if the selector has been explicitly
                     // woke up
                     int selected = select();
 
                     // Now, if the number of registered handles is 0, we can
                     // quit the loop: we don't have any socket listening
                     // for incoming connection.
+                    // nHandles 表示的是一共注册在 selector 上的连接数
                     if (nHandles == 0) {
                         acceptorRef.set(null);
-
+                        // 如果没有新的监听端口的请求，以及取消注册的请求，直接退出 loop
                         if (registerQueue.isEmpty() && cancelQueue.isEmpty()) {
                             assert acceptorRef.get() != this;
                             break;
@@ -484,9 +490,11 @@ public abstract class AbstractPollingIoAcceptor<S extends AbstractIoSession, H> 
                         assert acceptorRef.get() == this;
                     }
 
+                    // 如果有些连接上有 OP_ACCEPT 事件发生
                     if (selected > 0) {
-                        // We have some connection request, let's process
-                        // them here.
+                        // We have some connection request, let's process them here.
+                        // 监听获取到 SocketChannel，并且将 SocketChannel 封装成 NioSocketSession，并且将此 session
+                        // 分配到一个 Processor 上，让 Processor 真正将 channel 注册到 selector 上
                         processHandles(selectedHandles());
                     }
 
@@ -541,21 +549,29 @@ public abstract class AbstractPollingIoAcceptor<S extends AbstractIoSession, H> 
          */
         @SuppressWarnings("unchecked")
         private void processHandles(Iterator<H> handles) throws Exception {
+
             while (handles.hasNext()) {
+                // handles 是调用 selector.selectedKeys 返回的集合，但是调用 next 方法会调用 key.channel()
+                // 最终返回 ServerSocketChannel 对象
                 H handle = handles.next();
                 handles.remove();
 
-                // Associates a new created connection to a processor,
-                // and get back a session
+                // Associates a new created connection to a processor, and get back a session
+                // 监听获取到 SocketChannel，并且将 SocketChannel 封装成 NioSocketChannel。在封装时会给这个 channel 初始化一个
+                // filterChain 过滤器链（但此时还不包含任何 filter，除了 headFilter 和 tailFilter）和一个 processor（实际上是一个
+                // SimpleIoProcessorPool 对象）
                 S session = accept(processor, handle);
 
                 if (session == null) {
                     continue;
                 }
 
+                // 为 NioSocketChannel 初始化一个 AttributeMap 以及一个写请求队列 WriteRequestQueue
                 initSession(session, null, null);
-
                 // add the session to the SocketIoProcessor
+                // 用 SimpleIoProcessorPool 为 session 分配一个 processor，并且将此 session 添加到
+                // AbstractPollingIoProcessor 中的 newSessions 中，并启动 processor 来处理这个 session，
+                // 真正的将其注册到 selector 上，并且将 filterChainBuilder 中的 filter 保存到此 session 的 filterChain 中
                 session.getProcessor().add(session);
             }
         }
@@ -571,37 +587,41 @@ public abstract class AbstractPollingIoAcceptor<S extends AbstractIoSession, H> 
          */
         private int registerHandles() {
             for (;;) {
-                // The register queue contains the list of services to manage
-                // in this acceptor.
+                // The register queue contains the list of services to manage in this acceptor.
+                // 从 registerQueue 中获取到 future 对象，future 中包含需要监听的地址列表
                 AcceptorOperationFuture future = registerQueue.poll();
 
                 if (future == null) {
                     return 0;
                 }
 
-                // We create a temporary map to store the bound handles,
-                // as we may have to remove them all if there is an exception
+                // We create a temporary map to store the bound handles, as we may have to remove them all if there is an exception
                 // during the sockets opening.
+                // 从 future 中获得需要监听的地址 address 列表
                 Map<SocketAddress, H> newHandles = new ConcurrentHashMap<>();
                 List<SocketAddress> localAddresses = future.getLocalAddresses();
 
                 try {
                     // Process all the addresses
+                    // 为每一个 address 创建一个 ServerSocketChannel 对象，将其 bind 到 address 上，随后注册到 selector 上，
+                    // 并且监听 OP_ACCEPT 事件，随后返回 ServerSocketChannel 对象，也就是这里的 handle
                     for (SocketAddress a : localAddresses) {
                         H handle = open(a);
                         newHandles.put(localAddress(handle), handle);
                     }
 
-                    // Everything went ok, we can now update the map storing
-                    // all the bound sockets.
+                    // Everything went ok, we can now update the map storing all the bound sockets.
+                    // boundHandles 表示当前注册在 selector 上的所有 ServerSocketChannel 和 地址之间的映射关系
                     boundHandles.putAll(newHandles);
 
                     // and notify.
+                    // notify 阻塞在 future 上的线程（future 就是 registerQueue 上的 request）
                     future.setDone();
                     
                     return newHandles.size();
                 } catch (Exception e) {
                     // We store the exception in the future
+                    // 如果在 open 的过程中发生异常，则设置异常，同样会唤醒阻塞在 future 上的线程
                     future.setException(e);
                 } finally {
                     // Roll back if failed to bind all addresses.
@@ -627,6 +647,9 @@ public abstract class AbstractPollingIoAcceptor<S extends AbstractIoSession, H> 
          * cancellation queue.  The only thing that should be in the cancelQueue
          * is CancellationRequest objects and the only place this happens is in
          * the doUnbind() method.
+         *
+         * 从 cancelQueue 中获取到 future 对象，future 对象中保存了要监听的地址列表，遍历列表，
+         * 将每一个地址对应的 ServeSocketChannel 从 selector 上取消注册，并且关闭
          */
         private int unregisterHandles() {
             int cancelledHandles = 0;
@@ -645,6 +668,7 @@ public abstract class AbstractPollingIoAcceptor<S extends AbstractIoSession, H> 
                     }
 
                     try {
+                        // ServerSocketChannel 从 selector 上取消注册，并且关闭连接
                         close(handle);
                         wakeup(); // wake up again to trigger thread death
                     } catch (Exception e) {
@@ -654,6 +678,7 @@ public abstract class AbstractPollingIoAcceptor<S extends AbstractIoSession, H> 
                     }
                 }
 
+                // 唤醒等待 dispose 的线程
                 future.setDone();
             }
 

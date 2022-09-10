@@ -35,8 +35,11 @@ import org.apache.mina.core.session.IoSession;
 import org.apache.mina.util.ExceptionMonitor;
 
 /**
- * A helper class which provides addition and removal of {@link IoServiceListener}s and firing
- * events.
+ * A helper class which provides addition and removal of {@link IoServiceListener}s and firing events.
+ *
+ * IoServiceListenerSupport 是 AbstractIoService 类中的一个对象，用来帮助 AbstractIoService 管理
+ * IoServiceListener，即添加、删除 listener 对象。注意，在 IoFuture 和 AbstractIoService 类上都可以
+ * 注册 listener，只不过一个是 IoFutureListener，另外一个是 IoServiceListener
  *
  * @author <a href="http://mina.apache.org">Apache MINA Project</a>
  */
@@ -144,10 +147,12 @@ public class IoServiceListenerSupport {
     }
 
     /**
-     * Calls {@link IoServiceListener#serviceActivated(IoService)}
-     * for all registered listeners.
+     * Calls {@link IoServiceListener#serviceActivated(IoService)} for all registered listeners.
+     *
      */
     public void fireServiceActivated() {
+        // 如果 activated 使用 cas 更新成功之后，就会接着执行后面的 activate 操作
+        // 如果 activated 使用 cas 没有更新成功，说明有别的线程在调用此方法，并且设置 activated 成功，因此本线程直接退出
         if (!activated.compareAndSet(false, true)) {
             // The instance is already active
             return;
@@ -156,6 +161,7 @@ public class IoServiceListenerSupport {
         activationTime = System.currentTimeMillis();
 
         // Activate all the listeners now
+        // activate 注册在此对象上的所有 listener
         for (IoServiceListener listener : listeners) {
             try {
                 listener.serviceActivated(service);
@@ -166,16 +172,15 @@ public class IoServiceListenerSupport {
     }
 
     /**
-     * Calls {@link IoServiceListener#serviceDeactivated(IoService)}
-     * for all registered listeners.
+     * Calls {@link IoServiceListener#serviceDeactivated(IoService)} for all registered listeners.
      */
     public void fireServiceDeactivated() {
         if (!activated.compareAndSet(true, false)) {
-            // The instance is already desactivated
+            // The instance is already deactivated
             return;
         }
 
-        // Desactivate all the listeners
+        // Deactivate all the listeners
         try {
             for (IoServiceListener listener : listeners) {
                 try {

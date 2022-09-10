@@ -45,8 +45,7 @@ public abstract class AbstractIoAcceptor extends AbstractIoService implements Io
 
     private final List<SocketAddress> defaultLocalAddresses = new ArrayList<>();
 
-    private final List<SocketAddress> unmodifiableDefaultLocalAddresses = Collections
-            .unmodifiableList(defaultLocalAddresses);
+    private final List<SocketAddress> unmodifiableDefaultLocalAddresses = Collections.unmodifiableList(defaultLocalAddresses);
 
     private final Set<SocketAddress> boundAddresses = new HashSet<>();
 
@@ -230,8 +229,11 @@ public abstract class AbstractIoAcceptor extends AbstractIoService implements Io
             throw new IllegalArgumentException("localAddress");
         }
 
+        // 在 AbstractIoAcceptor 类的 bind 方法中，可以绑定一个地址，也可以同时绑定多个地址，
+        // 所以为了后续调用的 bind 方法接口的统一，生成一个 address 数组，将地址保存到其中
         List<SocketAddress> localAddresses = new ArrayList<>(1);
         localAddresses.add(localAddress);
+        // 真正绑定地址
         bind(localAddresses);
     }
 
@@ -304,6 +306,9 @@ public abstract class AbstractIoAcceptor extends AbstractIoService implements Io
 
         boolean activate = false;
         synchronized (bindLock) {
+            // 因为 acceptor 可能多次调用 bind 方法监听地址，而 localAddresses 后续会被添加到 boundAddresses 数组中，
+            // 因此需要使用 synchronized 关键字控制并发。如果 boundAddresses 为空，说明是初次 bind，因此 activate 设置为
+            // true。方便后续 fire 所有 listener 的 serviceActivated 事件
             synchronized (boundAddresses) {
                 if (boundAddresses.isEmpty()) {
                     activate = true;
@@ -315,6 +320,8 @@ public abstract class AbstractIoAcceptor extends AbstractIoService implements Io
             }
 
             try {
+                // 启动 acceptor 线程，为 localAddressesCopy 中的每一个 address 创建一个 ServerSocketChannel 进行监听，
+                // 并且注册到同一个 selector 上。返回的 addresses 是注册在 selector 上的所有 channel 监听的地址
                 Set<SocketAddress> addresses = bindInternal(localAddressesCopy);
 
                 synchronized (boundAddresses) {

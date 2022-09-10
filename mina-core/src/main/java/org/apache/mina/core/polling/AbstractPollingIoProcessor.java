@@ -70,8 +70,7 @@ public abstract class AbstractPollingIoProcessor<S extends AbstractIoSession> im
     private static final Logger LOG = LoggerFactory.getLogger(IoProcessor.class);
 
     /**
-     * A timeout used for the select, as we need to get out to deal with idle
-     * sessions
+     * A timeout used for the select, as we need to get out to deal with idle sessions
      */
     private static final long SELECT_TIMEOUT = 1000L;
 
@@ -92,7 +91,7 @@ public abstract class AbstractPollingIoProcessor<S extends AbstractIoSession> im
 
     /**
      * A queue used to store the sessions to be flushed
-     *
+     * session 中发生了 OP_WRITE 写事件准备把数据写出时，就会把 session 添加到 flushingSessions 集合中
      */
     private final Queue<S> flushingSessions = new ConcurrentLinkedQueue<>();
 
@@ -137,8 +136,7 @@ public abstract class AbstractPollingIoProcessor<S extends AbstractIoSession> im
      * classes, we store the last ID number into a Map associating the class
      * name to the last assigned ID.
      * 
-     * @return a name for the current thread, based on the class name and an
-     *         incremental value, starting at 1.
+     * @return a name for the current thread, based on the class name and an incremental value, starting at 1.
      */
     private String nextThreadName() {
         Class<?> cls = getClass();
@@ -361,7 +359,9 @@ public abstract class AbstractPollingIoProcessor<S extends AbstractIoSession> im
     /**
      * Reads a sequence of bytes from a {@link IoSession} into the given
      * {@link IoBuffer}. Is called when the session was found ready for reading.
-     * 
+     *
+     * 从 buffer 中读取字节数据到 session 中
+     *
      * @param session
      *            the session to read
      * @param buf
@@ -375,6 +375,8 @@ public abstract class AbstractPollingIoProcessor<S extends AbstractIoSession> im
     /**
      * Write a sequence of bytes to a {@link IoSession}, means to be called when
      * a session was found ready for writing.
+     *
+     * 将 buffer 中长度为 length 的字节数据写入到 session 中，具体的实现由子类 NioProcessor 来实现
      * 
      * @param session
      *            the session to write
@@ -426,6 +428,7 @@ public abstract class AbstractPollingIoProcessor<S extends AbstractIoSession> im
      */
     @Override
     public final void remove(S session) {
+        // 将此 session 添加到 removingSessions 中，然后启动 processor 的事件循环处理
         scheduleRemove(session);
         startupProcessor();
     }
@@ -442,7 +445,6 @@ public abstract class AbstractPollingIoProcessor<S extends AbstractIoSession> im
     @Override
     public void write(S session, WriteRequest writeRequest) {
         WriteRequestQueue writeRequestQueue = session.getWriteRequestQueue();
-
         writeRequestQueue.offer(session, writeRequest);
 
         if (!session.isWriteSuspended()) {
@@ -455,8 +457,7 @@ public abstract class AbstractPollingIoProcessor<S extends AbstractIoSession> im
      */
     @Override
     public final void flush(S session) {
-        // add the session to the queue if it's not already
-        // in the queue, then wake up the select()
+        // add the session to the queue if it's not already in the queue, then wake up the select()
         if (session.setScheduledForFlush(true)) {
             flushingSessions.add(session);
             wakeup();

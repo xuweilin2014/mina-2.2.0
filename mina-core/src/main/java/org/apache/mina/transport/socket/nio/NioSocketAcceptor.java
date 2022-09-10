@@ -46,9 +46,8 @@ import org.apache.mina.transport.socket.SocketAcceptor;
 import org.apache.mina.transport.socket.SocketSessionConfig;
 
 /**
- * {@link IoAcceptor} for socket transport (TCP/IP).  This class
- * handles incoming TCP/IP based socket connections.
- *
+ * {@link IoAcceptor} for socket transport (TCP/IP).  This class handles incoming TCP/IP based socket connections.
+ * NioSocketAcceptor --> AbstractPollingIoAcceptor --> AbstractIoAcceptor --> AbstractIoService
  * @author <a href="http://mina.apache.org">Apache MINA Project</a>
  */
 public class NioSocketAcceptor extends AbstractPollingIoAcceptor<NioSession, ServerSocketChannel> implements SocketAcceptor {
@@ -196,12 +195,15 @@ public class NioSocketAcceptor extends AbstractPollingIoAcceptor<NioSession, Ser
 
         // accept the connection from the client
         try {
+            // 由于 channel 上出现了 OP_ACCEPT 事件，因此需要真正调用 accept 方法获取到客户端建立的连接
             SocketChannel ch = handle.accept();
     
             if (ch == null) {
                 return null;
             }
 
+            // 将 SocketChannel 封装成 NioSocketChannel，在创建 NioSocketChannel 对象时，会创建一个 filterChain
+            // 另外，这里的 processor 是 SimpleIoProcessorPool 对象
             return new NioSocketSession(this, processor, ch);
         } catch (Throwable t) {
             if(t.getMessage().equals("Too many open files")) {

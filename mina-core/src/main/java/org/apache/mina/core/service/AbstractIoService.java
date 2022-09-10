@@ -71,8 +71,7 @@ public abstract class AbstractIoService implements IoService {
     protected static final Logger LOGGER = LoggerFactory.getLogger(AbstractIoService.class);
 
     /**
-     * The unique number identifying the Service. It's incremented
-     * for each new IoService created.
+     * The unique number identifying the Service. It's incremented for each new IoService created.
      */
     private static final AtomicInteger id = new AtomicInteger();
 
@@ -214,6 +213,8 @@ public abstract class AbstractIoService implements IoService {
 
         // Create the listeners, and add a first listener : a activation listener
         // for this service, which will give information on the service state.
+        // 在 AbstractIoService 类中初始化 IoServiceListener 的管理类 IoServiceListenerSupport，
+        // 并且把 serviceActivationListener 这个 listener 注册到此 acceptor 上
         listeners = new IoServiceListenerSupport(this);
         listeners.add(serviceActivationListener);
 
@@ -224,6 +225,8 @@ public abstract class AbstractIoService implements IoService {
         // change the thread context class loader.
         ExceptionMonitor.getInstance();
 
+        // 初始化 executor 为 newCachedThreadPool，acceptor 使用此线程池中的某一个线程来进行事件循环，
+        // 即绑定监听地址，初始化 ServerSocketChannel，并注册到 selector 上监听/处理 OP_ACCEPT 事件，
         if (executor == null) {
             this.executor = Executors.newCachedThreadPool();
             createdExecutor = true;
