@@ -52,6 +52,9 @@ import org.apache.mina.transport.socket.SocketSessionConfig;
  */
 public class NioSocketAcceptor extends AbstractPollingIoAcceptor<NioSession, ServerSocketChannel> implements SocketAcceptor {
 
+    // AbstractPollingIoAcceptor is a base class for implementing transport using a polling strategy.
+    // All the low level methods for binding, accepting, closing need to be provided by the subclassing implementation.
+    // 也就是 NioSocketAcceptor 具体实现了连接的 open、accept、close 操作
     protected volatile Selector selector;
     protected volatile SelectorProvider selectorProvider = null;
 
@@ -186,6 +189,8 @@ public class NioSocketAcceptor extends AbstractPollingIoAcceptor<NioSession, Ser
         SelectionKey key = null;
 
         if (handle != null) {
+            // 在 ServerSocketChannel 中保存了 keys 集合，其中每一个 key 都是通过将当前 channel 注册到 selector
+            // 上返回得到，而 SelectionKey 又保存了它注册在哪个 selector 上
             key = handle.keyFor(selector);
         }
 
@@ -202,7 +207,7 @@ public class NioSocketAcceptor extends AbstractPollingIoAcceptor<NioSession, Ser
                 return null;
             }
 
-            // 将 SocketChannel 封装成 NioSocketChannel，在创建 NioSocketChannel 对象时，会创建一个 filterChain
+            // 将 SocketChannel 封装成 NioSocketSession，在创建 NioSocketSession 对象时，会创建一个 filterChain
             // 另外，这里的 processor 是 SimpleIoProcessorPool 对象
             return new NioSocketSession(this, processor, ch);
         } catch (Throwable t) {
@@ -227,6 +232,9 @@ public class NioSocketAcceptor extends AbstractPollingIoAcceptor<NioSession, Ser
     }
 
     /**
+     * 获取到 ServerSocketChannel，并且设置其 SND BUFF 和 RCV BUFF，然后将 channel 绑定监听地址，并且将其注册到 selector 上，
+     * 并监听 OP_ACCEPT 事件
+     *
      * {@inheritDoc}
      */
     @Override
@@ -325,6 +333,7 @@ public class NioSocketAcceptor extends AbstractPollingIoAcceptor<NioSession, Ser
     }
 
     /**
+     * channel 从 selector 上取消注册，同时关闭 channel
      * {@inheritDoc}
      */
     @Override
@@ -347,8 +356,8 @@ public class NioSocketAcceptor extends AbstractPollingIoAcceptor<NioSession, Ser
     }
 
     /**
-     * Defines an iterator for the selected-key Set returned by the
-     * selector.selectedKeys(). It replaces the SelectionKey operator.
+     * Defines an iterator for the selected-key Set returned by the selector.selectedKeys(). It replaces the SelectionKey
+     * operator.
      */
     private static class ServerSocketChannelIterator implements Iterator<ServerSocketChannel> {
         /** The selected-key iterator */

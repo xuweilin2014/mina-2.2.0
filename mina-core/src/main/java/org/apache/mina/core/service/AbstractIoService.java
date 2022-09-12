@@ -106,6 +106,7 @@ public abstract class AbstractIoService implements IoService {
     protected final IoSessionConfig sessionConfig;
 
     private final IoServiceListener serviceActivationListener = new IoServiceListener() {
+
         IoServiceStatistics serviceStats;
 
         /**
@@ -174,8 +175,7 @@ public abstract class AbstractIoService implements IoService {
     private final IoServiceListenerSupport listeners;
 
     /**
-     * A lock object which must be acquired when related resources are
-     * destroyed.
+     * A lock object which must be acquired when related resources are destroyed.
      */
     protected final Object disposalLock = new Object();
 
@@ -214,7 +214,8 @@ public abstract class AbstractIoService implements IoService {
         // Create the listeners, and add a first listener : a activation listener
         // for this service, which will give information on the service state.
         // 在 AbstractIoService 类中初始化 IoServiceListener 的管理类 IoServiceListenerSupport，
-        // 并且把 serviceActivationListener 这个 listener 注册到此 acceptor 上
+        // 并且把 serviceActivationListener 这个 listener 注册到此 acceptor 上，此 listener 用来专门
+        // 记录 AbstractIoService 的一些状态
         listeners = new IoServiceListenerSupport(this);
         listeners.add(serviceActivationListener);
 
@@ -332,6 +333,9 @@ public abstract class AbstractIoService implements IoService {
                 disposing = true;
 
                 try {
+                    // dispose0 方法解除 acceptor 监听的所有地址。由于 acceptor 对于每一个监听地址使用一个
+                    // ServerSocketChannel 监听，因此 dispose0 会把所有地址对应 channel 从 selector 上
+                    // 取消注册，并且将 channel 关闭掉
                     dispose0();
                 } catch (Exception e) {
                     ExceptionMonitor.getInstance().exceptionCaught(e);
@@ -339,8 +343,12 @@ public abstract class AbstractIoService implements IoService {
             }
         }
 
+        // 如果用户没有传入线程池，而是由 mina 自己创建的，createdExecutor 设为 true，在 dispose 释放资源时，需要关闭掉
         if (createdExecutor) {
             ExecutorService e = (ExecutorService) executor;
+            // 当我们调用了shutdownNow() 方法后，调用线程立马从该方法返回，而不会阻塞等待正在执行的任务执行完毕，如果希望阻塞等待可以调用
+            // awaitTermination() 方法。这也算 shutdownNow() 和 shutdown() 方法的一个相同点。与 shutdown() 方法不同的是，shutdownNow()
+            // 方法调用后，线程池会通过调用 worker 线程的 interrupt 方法尽最大努力 (best-effort) 去"终止"已经运行的任务。
             e.shutdownNow();
             if (awaitTermination) {
 
@@ -348,7 +356,10 @@ public abstract class AbstractIoService implements IoService {
                     if (LOGGER.isDebugEnabled()) {
                         LOGGER.debug("awaitTermination on {} called by thread=[{}]", this, Thread.currentThread().getName());
                     }
-                    
+
+                    // 如果 awaitTermination 为 true，说明可以阻塞等待线程池中的任务执行完毕，因此调用 awaitTermination 方法
+                    // awaitTermination method blocks until all tasks have completed execution after a shutdown
+                    // request, or the timeout occurs, or the current thread is interrupted, whichever happens first.
                     e.awaitTermination(Integer.MAX_VALUE, TimeUnit.SECONDS);
                     
                     if (LOGGER.isDebugEnabled()) {

@@ -334,6 +334,7 @@ public abstract class AbstractIoAcceptor extends AbstractIoService implements Io
             }
         }
 
+        // fire 注册在 AbstractIoAcceptor 上各个 listener 的 serviceActivated 事件
         if (activate) {
             getListeners().fireServiceActivated();
         }
@@ -390,7 +391,9 @@ public abstract class AbstractIoAcceptor extends AbstractIoService implements Io
 
         boolean deactivate = false;
         synchronized (bindLock) {
+            // boundAddresses 表示当前 acceptor 监听的所有地址
             synchronized (boundAddresses) {
+                // 如果 boundAddresses 为空，则说明 acceptor 现阶段没有监听任何地址，因此直接返回
                 if (boundAddresses.isEmpty()) {
                     return;
                 }
@@ -412,6 +415,8 @@ public abstract class AbstractIoAcceptor extends AbstractIoService implements Io
 
                 if (!localAddressesCopy.isEmpty()) {
                     try {
+                        // 解除 localAddressesCopy 中各个地址对应的 channel 在 selector 上的注册，
+                        // 即 key.cancel()，并且关闭掉 channel
                         unbind0(localAddressesCopy);
                     } catch (RuntimeException e) {
                         throw e;
@@ -428,6 +433,7 @@ public abstract class AbstractIoAcceptor extends AbstractIoService implements Io
             }
         }
 
+        // 在 acceptor 中注册的所有 listener 上 fire serviceDeactivated
         if (deactivate) {
             getListeners().fireServiceDeactivated();
         }

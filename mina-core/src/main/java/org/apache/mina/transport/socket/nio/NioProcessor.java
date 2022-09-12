@@ -46,6 +46,7 @@ import org.apache.mina.core.session.SessionState;
  */
 public class NioProcessor extends AbstractPollingIoProcessor<NioSession> {
     /** The selector associated with this processor */
+    // 在 acceptor、processor 以及 connector 中都各自有自己的 selector
     protected Selector selector;
     
     /** A lock used to protect concurrent access to the selector */

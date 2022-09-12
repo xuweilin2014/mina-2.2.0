@@ -44,9 +44,9 @@ import org.apache.mina.transport.socket.SocketSessionConfig;
  *
  * @author <a href="http://mina.apache.org">Apache MINA Project</a>
  */
-public final class NioSocketConnector extends AbstractPollingIoConnector<NioSession, SocketChannel> implements
-SocketConnector {
+public final class NioSocketConnector extends AbstractPollingIoConnector<NioSession, SocketChannel> implements SocketConnector {
 
+    // 在 acceptor、processor 以及 connector 中都各自有自己的 selector
     private volatile Selector selector;
 
     /**
@@ -222,10 +222,14 @@ SocketConnector {
      */
     @Override
     protected boolean finishConnect(SocketChannel handle) throws Exception {
+        // 如果 SocketChannel 调用 finishConnect 返回 true，说明 channel 成功连接到服务端，
+        // 而由于 OP_CONNECT 是只需要处理一次的事件，当 channel 建立连接后，就可以从 channel 进行读写，
+        // 并且需要把 channel 从 selector 上移除，取消注册
         if (handle.finishConnect()) {
             SelectionKey key = handle.keyFor(selector);
 
             if (key != null) {
+                // 将 channel 从 selector 上移除
                 key.cancel();
             }
 
@@ -252,10 +256,8 @@ SocketConnector {
             try {
                 ch.socket().bind(localAddress);
             } catch (IOException ioe) {
-                // Add some info regarding the address we try to bind to the
-                // message
-                String newMessage = "Error while binding on " + localAddress + "\n" + "original message : "
-                        + ioe.getMessage();
+                // Add some info regarding the address we try to bind to the message
+                String newMessage = "Error while binding on " + localAddress + "\n" + "original message : " + ioe.getMessage();
                 Exception e = new IOException(newMessage);
                 e.initCause(ioe.getCause());
 

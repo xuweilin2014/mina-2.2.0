@@ -192,10 +192,12 @@ public abstract class AbstractPollingIoConnector<S extends AbstractIoSession, H>
             throw new IllegalArgumentException("processor");
         }
 
+        // processor 为 SimpleIoProcessorPool 类对象，包含了 processor 的集合
         this.processor = processor;
         this.createdProcessor = createdProcessor;
 
         try {
+            // 开启 NioSocketConnector 上的 selector，并设置 selectable 为 true，表示可以接受 OP_CONNECT 事件
             init();
             selectable = true;
         } catch (RuntimeException e) {
@@ -203,6 +205,7 @@ public abstract class AbstractPollingIoConnector<S extends AbstractIoSession, H>
         } catch (Exception e) {
             throw new RuntimeIoException("Failed to initialize.", e);
         } finally {
+            // 如果无法正常开启 selector，那么就直接关闭掉 selector
             if (!selectable) {
                 try {
                     destroy();
@@ -366,12 +369,20 @@ public abstract class AbstractPollingIoConnector<S extends AbstractIoSession, H>
         H handle = null;
         boolean success = false;
         try {
+            // open SocketChannel 并且设定 READ BUFFER 参数，同时如果 localAddress 不为 null，那么
+            // SocketChannel 也会同时绑定监听 localAddress 地址
             handle = newHandle(localAddress);
+            // 尝试将 SocketChannel 连接到远程主机地址，如果返回 true，连接成功的话，直接创建一个 NioSocketSession，
+            // 同时为这 session 设置 AttributeMap 和 WriteRequestQueue。最后给 session 分配 Processor，并且添加到
+            // newSessions 上，然后开启 Processor 来处理 newSessions 新 session 的读写事件
             if (connect(handle, remoteAddress)) {
                 ConnectFuture future = new DefaultConnectFuture();
                 S session = newSession(processor, handle);
+                // 初始化 session 上的 AttributeMap 和 WriteRequestQueue，并且在 future 上添加一个 listener，因为用户
+                // 有可能在 session 被 Processor 处理前提前 cancel 掉 ConnectFuture，因此注册了 listener 之后可以及时关闭掉 session
                 initSession(session, future, sessionInitializer);
                 // Forward the remaining process to the IoProcessor.
+                // 将 session 添加到 newSessions 中等待 Processor 处理
                 session.getProcessor().add(session);
                 success = true;
                 return future;
@@ -390,8 +401,10 @@ public abstract class AbstractPollingIoConnector<S extends AbstractIoSession, H>
             }
         }
 
+        // 如果上面没有连接成功，那么创建连接建立请求，并且将其保存到 connectQueue，开启并唤醒 connector 来进行处理
         ConnectionRequest request = new ConnectionRequest(handle, sessionInitializer);
         connectQueue.add(request);
+        // 开启 connector
         startupWorker();
         wakeup();
 
@@ -415,6 +428,7 @@ public abstract class AbstractPollingIoConnector<S extends AbstractIoSession, H>
         }
     }
 
+    @SuppressWarnings("DuplicatedCode")
     private class Connector implements Runnable {
         /**
          * {@inheritDoc}
@@ -427,18 +441,21 @@ public abstract class AbstractPollingIoConnector<S extends AbstractIoSession, H>
 
             while (selectable) {
                 try {
-                    // the timeout for select shall be smaller of the connect
-                    // timeout or 1 second...
+                    // the timeout for select shall be smaller of the connect timeout or 1 second...
                     int timeout = (int) Math.min(getConnectTimeoutMillis(), 1000L);
+                    // 在 selector 上阻塞 timeout 时间段
                     int selected = select(timeout);
 
+                    // 从 connectQueue 中获取到要和服务端建立连接的请求，然后将请求中的 SocketChannel，并且注册到
+                    // selector 上监听 OP_CONNECT 事件。registerNew 返回方法中注册了多少个 channel
+                    // nHandles 表示一共在 selector 上注册了多少个 channel
                     nHandles += registerNew();
 
-                    // get a chance to get out of the connector loop, if we
-                    // don't have any more handles
+                    // get a chance to get out of the connector loop, if we don't have any more handles
+                    // nHandles 为 0，表示当前 selector 上没有注册任何 channel
                     if (nHandles == 0) {
                         connectorRef.set(null);
-
+                        // 如果 connectQueue 也为 0 的话，说明客户端没有和远程主机建立新连接的请求，退出 loop
                         if (connectQueue.isEmpty()) {
                             assert connectorRef.get() != this;
                             break;
@@ -452,12 +469,20 @@ public abstract class AbstractPollingIoConnector<S extends AbstractIoSession, H>
                         assert connectorRef.get() == this;
                     }
 
+                    // selected > 0 说明 selector 上有连接建立成功，进行处理
                     if (selected > 0) {
+                        // 处理 channel 上的 OP_CONNECT 事件，创建并初始化 session，并且为它分配一个 Processor，将其加入到
+                        // Processor 的 newSessions 队列中。由于 OP_CONNECT 只需要处理一次，因此将 channel 从 selector 取消注册
+                        // 另外，selector.selectedKeys 直接返回的是其内部 publicSelectedKeys 类集合对象，可以从中移除元素，但是不能添加，
+                        // selector.keys 返回的是注册在当前选择器上的通道的 SelectionKey 对象，此集合不可改变（unmodifiableSet）
+                        // 并且将 key 从 selectedKeys 中移除后，keys 集合不受影响
                         nHandles -= processConnections(selectedHandles());
                     }
 
+                    // 将超时 channel 对应的 future 添加到 cancelQueue 中
                     processTimedOutSessions(allHandles());
 
+                    // 遍历 cancelQueue，将对应的 key cancel 掉，同时关闭 channel
                     nHandles -= cancelKeys();
                 } catch (ClosedSelectorException cse) {
                     // If the selector has been closed, we can exit the loop
@@ -477,6 +502,8 @@ public abstract class AbstractPollingIoConnector<S extends AbstractIoSession, H>
             if (selectable && isDisposing()) {
                 selectable = false;
                 try {
+                    // 如果是 mina 自己创建 processor，那么进行关闭释放
+                    // 这里 processor 是 SimpleIoProcessorPool
                     if (createdProcessor) {
                         processor.dispose();
                     }
@@ -504,8 +531,12 @@ public abstract class AbstractPollingIoConnector<S extends AbstractIoSession, H>
                     break;
                 }
 
+                // handle 是 SocketChannel 类型的对象
                 H handle = req.handle;
                 try {
+                    // 将 handle 注册到 selector 上，监听 OP_CONNECT 事件，OP_CONNECT 表示客户端与服务器端建立连接完毕，
+                    // 由于 OP_CONNECT 连接事件是只需要处理一次的事件，一旦连接建立完成，就可以进行读、写操作了。所以之后在 run
+                    // 方法中会调用 cancelKeys 方法取消注册
                     register(handle, req);
                     nHandles++;
                 } catch (Exception e) {
@@ -533,6 +564,7 @@ public abstract class AbstractPollingIoConnector<S extends AbstractIoSession, H>
                 H handle = req.handle;
 
                 try {
+                    // key.cancel 取消注册，同时将 channel 关闭
                     close(handle);
                 } catch (Exception e) {
                     ExceptionMonitor.getInstance().exceptionCaught(e);
@@ -557,9 +589,15 @@ public abstract class AbstractPollingIoConnector<S extends AbstractIoSession, H>
 
             // Loop on each connection request
             while (handlers.hasNext()) {
+                // handlers 是在 selector 上产生了 OP_CONNECT 事件的 SocketChannel 的 SelectionKey 集合
+                // 不过 next() 方法直接返回 SocketChannel
                 H handle = handlers.next();
+                // selector.selectedKeys 直接返回的是其内部 publicSelectedKeys 类对象，然后把当前 channel 的 key
+                // 从集合中移除，防止重复添加。但是移除了 selectedKeys 中的 SelectionKey 不代表移除了 selector 中的
+                // channel 信息(这点很重要)
                 handlers.remove();
 
+                // 返回这个 SocketChannel 对应的 ConnectionRequest
                 ConnectionRequest connectionRequest = getConnectionRequest(handle);
 
                 if (connectionRequest == null) {
@@ -568,8 +606,28 @@ public abstract class AbstractPollingIoConnector<S extends AbstractIoSession, H>
 
                 boolean success = false;
                 try {
+                    // connect 的 api 文档是这么解释的：If this channel is in non-blocking mode then an invocation of this
+                    // method initiates a non-blocking connection operation. If the connection is established immediately,
+                    // as can happen with a local connection, then this method returns true. Otherwise this method returns
+                    // false and the connection operation must later be completed by invoking the finishConnect method.
+                    //
+                    // 一个 channel 在非阻塞模式下执行 connect 后，如果连接能马上建立好则返回 true，否则完成 false。如果返回 false，那么
+                    // 只能通过之后调用 finishConnect 来判断连接是否完成。在 select 循环里，先检测 SelectionKey 是否 isConnectable 为 true，
+                    // 如果是则进入分支，再执行 SocketChannel.finishConnect。若连接成功，finishConnect 返回真；若连接失败，则抛出异常。
+                    //
+                    // 在之前，客户端如果能直接 connect 到远程主机地址，那么就直接返回；否则就会创建 ConnectRequest，保存到 connectQueue
+                    // 中由 connector 线程来进行处理。注意当 selector 检测到 channel 建立好连接，或者连接出现异常时，都会出现 OP_CONNECT
+                    // 事件，所以这里要通过 finishConnect 判断是否完成连接，具体的文档如下：
+                    //
+                    // Suppose that a selection key's interest set contains OP_CONNECT at the start of a selection operation.
+                    // If the selector detects that the corresponding socket channel is ready to complete its connection sequence,
+                    // or has an error pending, then it will add OP_CONNECT to the key's ready set and add the key to its selected-key set.
+                    //
+                    // 由于 OP_CONNECT 是只需要处理一次的事件，在 channel 建立好连接之后，就可以进行读写，因此 finishConnect 会把 channel 从
+                    // selector 上取消注册
                     if (finishConnect(handle)) {
                         S session = newSession(processor, handle);
+                        // 为 session 初始化 AttributeMap 和 WriteRequestQueue，并且注册 listener
                         initSession(session, connectionRequest, connectionRequest.getSessionInitializer());
                         // Forward the remaining process to the IoProcessor.
                         session.getProcessor().add(session);
@@ -595,6 +653,8 @@ public abstract class AbstractPollingIoConnector<S extends AbstractIoSession, H>
                 H handle = handles.next();
                 ConnectionRequest connectionRequest = getConnectionRequest(handle);
 
+                // currentTime >= connectionRequest.deadline，说明在指定的 timeout 时间内 channel 还没有连接完毕，
+                // 则需要将其取消注册
                 if ((connectionRequest != null) && (currentTime >= connectionRequest.deadline)) {
                     connectionRequest.setException(new ConnectException("Connection timed out."));
                     cancelQueue.offer(connectionRequest);

@@ -241,6 +241,7 @@ public abstract class AbstractPollingIoAcceptor<S extends AbstractIoSession, H> 
         } finally {
             if (!selectable) {
                 try {
+                    // 关闭 selector
                     destroy();
                 } catch (Exception e) {
                     ExceptionMonitor.getInstance().exceptionCaught(e);
@@ -359,6 +360,7 @@ public abstract class AbstractPollingIoAcceptor<S extends AbstractIoSession, H> 
         try {
             lock.acquire();
             // 唤醒可能阻塞在 selector 上的线程，或者下次调用 select 方法立即返回
+            // 这样 acceptor 就能立即处理刚刚加入到 registerQueue 中的请求
             wakeup();
         } finally {
             lock.release();
@@ -366,8 +368,8 @@ public abstract class AbstractPollingIoAcceptor<S extends AbstractIoSession, H> 
 
         // Now, we wait until this request is completed.
         // 阻塞等待 acceptor 线程处理前面创建的 request 请求，acceptor 线程会为其中 localAddresses 中的
-        // 每一个地址 addr 创建 ServerSocketChannel，并且 bind 到 addr 上，然后注册到 selector 上监听 OP_ACCEPT 事件
-        // 如果 acceptor 处理完 request 请求，就会唤醒阻塞在 request 上的线程
+        // 每一个地址 addr 创建 ServerSocketChannel，并且 bind 到 addr 上，然后注册到同一个 selector 上监听
+        // OP_ACCEPT 事件。如果 acceptor 处理完 request 请求，就会唤醒阻塞在 request 上的线程
         request.awaitUninterruptibly();
 
         if (request.getException() != null) {
@@ -424,8 +426,10 @@ public abstract class AbstractPollingIoAcceptor<S extends AbstractIoSession, H> 
 
         cancelQueue.add(future);
         startupAcceptor();
+        // 唤醒 acceptor 去处理 cancelQueue 中的 future
         wakeup();
 
+        // 阻塞直到 acceptor 处理完 future
         future.awaitUninterruptibly();
         if (future.getException() != null) {
             throw future.getException();
@@ -449,6 +453,7 @@ public abstract class AbstractPollingIoAcceptor<S extends AbstractIoSession, H> 
             int nHandles = 0;
 
             // Release the lock
+            // 在 executeWorker 方法调用之前，使用了 lock.acquire
             lock.release();
 
             // selector 在创建完毕之后，就会设置 selectable 为 true，可以接受新的连接
@@ -461,8 +466,8 @@ public abstract class AbstractPollingIoAcceptor<S extends AbstractIoSession, H> 
                     // the registerQueue containing the new handler is
                     // already updated at this point.
                     // 从 registerQueue 中获取到注册请求 request，并且从 request 中获取需要监听的地址列表，
-                    // 然后为每一个地址 addr 创建一个 ServerSocketChannel，然后将其 bind 到 addr 上，监听 OP_ACCEPT 事件，
-                    // 即等待此 addr 上是否有客户端想建立连接。最后返回注册在 selector 上的连接数。
+                    // 然后为每一个地址 addr 创建一个 ServerSocketChannel，然后将其 bind 到 addr 上，并且注册到同一个 Selector 上来
+                    // 监听 OP_ACCEPT 事件，即等待此 addr 上是否有客户端想建立连接。最后返回刚刚注册在 selector 上的连接数。
                     nHandles += registerHandles();
 
                     // Detect if we have some keys ready to be processed. The select() will be woke up
@@ -473,7 +478,7 @@ public abstract class AbstractPollingIoAcceptor<S extends AbstractIoSession, H> 
                     // Now, if the number of registered handles is 0, we can
                     // quit the loop: we don't have any socket listening
                     // for incoming connection.
-                    // nHandles 表示的是一共注册在 selector 上的连接数
+                    // nHandles 表示的是刚刚注册在 selector 上的连接数
                     if (nHandles == 0) {
                         acceptorRef.set(null);
                         // 如果没有新的监听端口的请求，以及取消注册的请求，直接退出 loop
@@ -603,7 +608,7 @@ public abstract class AbstractPollingIoAcceptor<S extends AbstractIoSession, H> 
 
                 try {
                     // Process all the addresses
-                    // 为每一个 address 创建一个 ServerSocketChannel 对象，将其 bind 到 address 上，随后注册到 selector 上，
+                    // 为每一个 address 创建一个 ServerSocketChannel 对象，将其 bind 到 address 上，随后注册到同一个 selector 上，
                     // 并且监听 OP_ACCEPT 事件，随后返回 ServerSocketChannel 对象，也就是这里的 handle
                     for (SocketAddress a : localAddresses) {
                         H handle = open(a);
@@ -661,6 +666,8 @@ public abstract class AbstractPollingIoAcceptor<S extends AbstractIoSession, H> 
 
                 // close the channels
                 for (SocketAddress a : future.getLocalAddresses()) {
+                    // the remove methods return the value to which this map previously associated the key,
+                    // or null if the map contained no mapping for the key.
                     H handle = boundHandles.remove(a);
 
                     if (handle == null) {

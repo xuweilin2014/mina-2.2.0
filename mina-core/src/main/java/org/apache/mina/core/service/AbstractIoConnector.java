@@ -211,8 +211,7 @@ public abstract class AbstractIoConnector extends AbstractIoService implements I
      * {@inheritDoc}
      */
     @Override
-    public ConnectFuture connect(SocketAddress remoteAddress,
-            IoSessionInitializer<? extends ConnectFuture> sessionInitializer) {
+    public ConnectFuture connect(SocketAddress remoteAddress, IoSessionInitializer<? extends ConnectFuture> sessionInitializer) {
         return connect(remoteAddress, null, sessionInitializer);
     }
 
@@ -249,6 +248,8 @@ public abstract class AbstractIoConnector extends AbstractIoService implements I
         }
 
         if (getHandler() == null) {
+            // 检查 useReadOperation 是否开启，如果开启了的话，对于客户端来说，它所接受到的所有消息都会被存储到一个阻塞队列中，
+            // 对于服务端来说则没有必要，开启后可能会造成内存泄漏，所以默认是关闭的
             if (getSessionConfig().isUseReadOperation()) {
                 setHandler(new IoHandler() {
                     /**
