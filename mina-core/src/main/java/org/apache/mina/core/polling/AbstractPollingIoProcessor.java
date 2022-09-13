@@ -476,8 +476,7 @@ public abstract class AbstractPollingIoProcessor<S extends AbstractIoSession> im
     }
 
     /**
-     * Starts the inner Processor, asking the executor to pick a thread in its
-     * pool. The Runnable will be renamed
+     * Starts the inner Processor, asking the executor to pick a thread in its pool. The Runnable will be renamed
      */
     private void startupProcessor() {
         Processor processor = processorRef.get();

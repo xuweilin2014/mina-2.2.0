@@ -36,15 +36,12 @@ import org.apache.mina.transport.socket.nio.NioSocketAcceptor;
 public class HaikuValidationServer {
     public static void main(String... args) throws Exception {
         ExecutorService executor = Executors.newCachedThreadPool();
-        SocketAcceptor acceptor = new NioSocketAcceptor(Runtime.getRuntime()
-                .availableProcessors());
+        SocketAcceptor acceptor = new NioSocketAcceptor(Runtime.getRuntime().availableProcessors());
 
-        acceptor.getFilterChain().addLast("executor",
-                new ExecutorFilter(executor));
-        acceptor.getFilterChain().addLast(
-                "to-string",
-                new ProtocolCodecFilter(new TextLineCodecFactory(Charset
-                        .forName("US-ASCII"))));
+        acceptor.getFilterChain().addLast("executor", new ExecutorFilter(executor));
+        acceptor.getFilterChain().addLast("to-string", new ProtocolCodecFilter(
+                new TextLineCodecFactory(Charset.forName("US-ASCII")))
+        );
         acceptor.getFilterChain().addLast("to-haiki", new ToHaikuIoFilter());
 
         acceptor.setHandler(new HaikuValidatorIoHandler());

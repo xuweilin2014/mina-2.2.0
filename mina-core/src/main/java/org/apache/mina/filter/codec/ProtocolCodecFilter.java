@@ -40,6 +40,11 @@ import org.slf4j.LoggerFactory;
  * message objects and vice versa using {@link ProtocolCodecFactory},
  * {@link ProtocolEncoder}, or {@link ProtocolDecoder}.
  *
+ * ProtocolCodecFilter 是一个编解码过滤器，它在用户创建 filterChain 时添加到其中，并且接受
+ * 实现了 ProtocolCodecFactory 接口的类当做对象。这个工厂类会返回 encoder 和 decoder，
+ * encoder 是当发生 filterWrite 事件时，对要发送的信息进行编码；decoder 是当发生 messageReceived
+ * 事件时，对发送过来的消息进行解码
+ *
  * @author <a href="http://mina.apache.org">Apache MINA Project</a>
  * @org.apache.xbean.XBean
  */
@@ -121,8 +126,7 @@ public class ProtocolCodecFilter extends IoFilterAdapter {
      * @param encoderClass The class responsible for encoding the message
      * @param decoderClass The class responsible for decoding the message
      */
-    public ProtocolCodecFilter(final Class<? extends ProtocolEncoder> encoderClass,
-            final Class<? extends ProtocolDecoder> decoderClass) {
+    public ProtocolCodecFilter(final Class<? extends ProtocolEncoder> encoderClass, final Class<? extends ProtocolDecoder> decoderClass) {
         if (encoderClass == null) {
             throw new IllegalArgumentException("encoderClass");
         }
@@ -218,6 +222,7 @@ public class ProtocolCodecFilter extends IoFilterAdapter {
      * decoder throws an exception.
      * 
      * while ( buffer not empty ) try decode ( buffer ) catch break;
+     *
      * 
      */
     @Override
@@ -227,13 +232,17 @@ public class ProtocolCodecFilter extends IoFilterAdapter {
             LOGGER.debug("Processing a MESSAGE_RECEIVED for session {}", session.getId());
         }
 
+        // 如果 message 不是 IoBuffer 的类型，直接继续传递给下一个 filter
         if (!(message instanceof IoBuffer)) {
             nextFilter.messageReceived(session, message);
             return;
         }
 
         final IoBuffer in = (IoBuffer) message;
+        // 通过工厂类获取到解码器 decoder
         final ProtocolDecoder decoder = factory.getDecoder(session);
+        // DECODER_OUTPUT 继承了 ThreadLocal 类，因此调用 get 方法每一个线程都会返回自己专属的
+        // ProtocolDecoderOutputImpl 类对象
         final ProtocolDecoderOutputImpl decoderOut = DECODER_OUTPUT.get();
 
         // Loop until we don't have anymore byte in the buffer,
@@ -241,11 +250,14 @@ public class ProtocolCodecFilter extends IoFilterAdapter {
         // can't decoder a message, because there are not enough
         // data in the buffer
         while (in.hasRemaining()) {
+            // 记录 in 这个 buffer 之前的 position 位置
             int oldPos = in.position();
             try {
                 // Call the decoder with the read bytes
+                // 调用解码器对 in 这个 buffer 中的字节数据进行解码，然后将解码后的结果保存到 decoderOut 这个类的 messageQueue 中
                 decoder.decode(session, in, decoderOut);
                 // Finish decoding if no exception was thrown.
+                // flush 方法遍历 messageQueue 中的消息对象，把每一个消息继续传递给下一个 filter 的 messageReceived 方法
                 decoderOut.flush(nextFilter, session);
             } catch (Exception e) {
                 ProtocolDecoderException pde;
@@ -254,6 +266,9 @@ public class ProtocolCodecFilter extends IoFilterAdapter {
                 } else {
                     pde = new ProtocolDecoderException(e);
                 }
+
+                // 将 in 这个 buffer 中从 oldPos 开始一直到 limit 这个区间的二进制数据转换成 16 进制的字符串，
+                // 并设置到 pde 中的 hexdump 属性中
                 if (pde.getHexdump() == null) {
                     // Generate a message hex dump
                     int curPos = in.position();
@@ -261,13 +276,14 @@ public class ProtocolCodecFilter extends IoFilterAdapter {
                     pde.setHexdump(in.getHexDump());
                     in.position(curPos);
                 }
+
                 // Fire the exceptionCaught event.
+                // 把 messageQueue 中解码好的消息发送给下一个 filter 的 messageReceived 方法
                 decoderOut.flush(nextFilter, session);
+                // fire filterChain 的 exceptionCaught 事件
                 nextFilter.exceptionCaught(session, pde);
-                // Retry only if the type of the caught exception is
-                // recoverable and the buffer position has changed.
-                // We check buffer position additionally to prevent an
-                // infinite loop.
+                // Retry only if the type of the caught exception is recoverable and the buffer position has changed.
+                // We check buffer position additionally to prevent an infinite loop.
                 if (!(e instanceof RecoverableProtocolDecoderException) || (in.position() == oldPos)) {
                     break;
                 }
@@ -291,12 +307,11 @@ public class ProtocolCodecFilter extends IoFilterAdapter {
      * {@inheritDoc}
      */
     @Override
-    public void filterWrite(final NextFilter nextFilter, final IoSession session, final WriteRequest writeRequest)
-            throws Exception {
+    public void filterWrite(final NextFilter nextFilter, final IoSession session, final WriteRequest writeRequest)  throws Exception {
         final Object message = writeRequest.getMessage();
 
-        // Bypass the encoding if the message is contained in a IoBuffer,
-        // as it has already been encoded before
+        // Bypass the encoding if the message is contained in a IoBuffer, as it has already been encoded before
+        // 如果 message 是 IoBuffer 类型的话，就不用去进行编码处理
         if ((message instanceof IoBuffer) || (message instanceof FileRegion)) {
             nextFilter.filterWrite(session, writeRequest);
             return;
@@ -312,18 +327,29 @@ public class ProtocolCodecFilter extends IoFilterAdapter {
 
         try {
             // Now we can try to encode the response
+            // 使用编码器 encoder 对 message 进行编码，也就是把 message 转换成字节数据保存到一个 IoBuffer 中，
+            // 并且最后写入到 encoderOut 中的 messageQueue 里面
             encoder.encode(session, message, encoderOut);
 
             final Queue<Object> queue = encoderOut.messageQueue;
 
             if (queue.isEmpty()) {
                 // Write empty message to ensure that messageSent is fired later
+                // 将 WriteRequest 中的消息体设置为空（空白消息），然后调用传递给下一个 filter 的 filterWrite 方法，
+                // 这样做是因为：当 filterWrite 事件发生之后，之后一般会发生 messageSent 事件（buffer 被 processor
+                // 真正写入到 channel 中发送，然后 fire messageSent 事件）
                 writeRequest.setMessage(EMPTY_BUFFER);
                 nextFilter.filterWrite(session, writeRequest);
             } else {
                 // Write all the encoded messages now
                 Object encodedMessage = null;
 
+                /*
+                 * 如果在编码的过程中，将 writeRequest 中的数据编码成了多个消息，那么就会把除最后一个消息外的其它 message
+                 * 封装成 EncodedWriteRequest（最后一个还是 WriteRequest），这样最后一个 WriteRequest 才会被发送给
+                 * 用户自定义 Handler 中的 messageSent 方法，而其余的 EncodedWriteRequest 被 ProtocolCodecFilter
+                 * 中的 messageSent 方法拦截下来
+                 */
                 while ((encodedMessage = queue.poll()) != null) {
                     if (queue.isEmpty()) {
                         // Write last message using original WriteRequest to ensure that any Future and
@@ -355,6 +381,7 @@ public class ProtocolCodecFilter extends IoFilterAdapter {
         ProtocolDecoderOutput decoderOut = DECODER_OUTPUT.get();
 
         try {
+            // 调用 finishDecode 来对剩余的数据进行解码，并且同样把解码后的数据保存到 decoderOut 中
             decoder.finishDecode(session, decoderOut);
         } catch (Exception e) {
             ProtocolDecoderException pde;
@@ -366,6 +393,7 @@ public class ProtocolCodecFilter extends IoFilterAdapter {
             throw pde;
         } finally {
             // Dispose everything
+            // 销毁 encoder 和 decoder，具体由用户自己定义实现
             disposeCodec(session);
             decoderOut.flush(nextFilter, session);
         }
@@ -405,8 +433,7 @@ public class ProtocolCodecFilter extends IoFilterAdapter {
      * Dispose the encoder, decoder, and the callback for the decoded messages.
      */
     private void disposeCodec(IoSession session) {
-        // We just remove the two instances of encoder/decoder to release resources
-        // from the session
+        // We just remove the two instances of encoder/decoder to release resources from the session
         disposeEncoder(session);
         disposeDecoder(session);
     }
@@ -416,6 +443,7 @@ public class ProtocolCodecFilter extends IoFilterAdapter {
      * calling the associated dispose method.
      */
     private void disposeEncoder(IoSession session) {
+        // session 中 AttributeMap 里面的 ENCODER 可以在自定义的 encoder 类中添加进去
         ProtocolEncoder encoder = (ProtocolEncoder) session.removeAttribute(ENCODER);
         if (encoder == null) {
             return;
@@ -433,6 +461,7 @@ public class ProtocolCodecFilter extends IoFilterAdapter {
      * calling the associated dispose method.
      */
     private void disposeDecoder(IoSession session) {
+        // session 中 AttributeMap 里面的 DECODER 可以在自定义的 decoder 类中添加进去
         ProtocolDecoder decoder = (ProtocolDecoder) session.removeAttribute(DECODER);
         if (decoder == null) {
             return;
@@ -445,6 +474,10 @@ public class ProtocolCodecFilter extends IoFilterAdapter {
         }
     }
 
+    /**
+     * ProtocolDecoderOutputLocal 类型的对象 DECODER_OUTPUT 继承了 ThreadLocal，因此当调用 DECODER_OUTPUT.get 方法
+     * 时，不同的线程都会获取到不同的 ProtocolDecoderOutputImpl 类实例
+     */
     static private class ProtocolDecoderOutputLocal extends ThreadLocal<ProtocolDecoderOutputImpl> {
         @Override
         protected ProtocolDecoderOutputImpl initialValue() {

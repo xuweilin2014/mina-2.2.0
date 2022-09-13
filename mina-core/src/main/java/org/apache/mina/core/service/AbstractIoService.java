@@ -544,6 +544,9 @@ public abstract class AbstractIoService implements IoService {
 
         if ((future != null) && (future instanceof ConnectFuture)) {
             // DefaultIoFilterChain will notify the future. (We support ConnectFuture only for now).
+            // 客户端到服务器端的连接 session 在创建初始化之后，会添加到 newSessions 中，由 processor 来进行处理
+            // 在 processor 的 addNow 方法中会 fire session 中 filterChain 的 sessionCreated 和 sessionOpened 事件
+            // 最后会在 TailFilter#sessionOpened 方法中设置 session 到 future 中，并且 notify 阻塞在 future 上的用户线程
             session.setAttribute(DefaultIoFilterChain.SESSION_CREATED_FUTURE, future);
         }
 

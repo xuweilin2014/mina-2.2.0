@@ -43,7 +43,9 @@ public class MyServerHandler extends IoHandlerAdapter {
             return;
         }
         Date date = new Date();
-        WriteFuture writeFuture = session.write(date);
+        session.write(new Date());
+        session.write(new Date());
+        WriteFuture writeFuture = session.write(new Date());
         writeFuture.await();
     }
 

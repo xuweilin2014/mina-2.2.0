@@ -29,6 +29,9 @@ import org.apache.mina.core.session.IoSession;
  * <a href="../../../../../xref-examples/org/apache/mina/examples/reverser/ReverseProtocolProvider.html"><code>ReverserProtocolProvider</code></a>
  * example.
  *
+ * ProtocolCodecFilter 接受一个 ProtocolCodecFactory 工厂类对象作为参数，从而返回 encoder 和
+ * decoder 用来进行编解码
+ *
  * @author <a href="http://mina.apache.org">Apache MINA Project</a>
  */
 public interface ProtocolCodecFactory {

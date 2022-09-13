@@ -53,8 +53,7 @@ public class DefaultIoFilterChain implements IoFilterChain {
      * attribute and notifies the future when {@link #fireSessionCreated()}
      * or {@link #fireExceptionCaught(Throwable)} is invoked.
      */
-    public static final AttributeKey SESSION_CREATED_FUTURE = new AttributeKey(DefaultIoFilterChain.class,
-            "connectFuture");
+    public static final AttributeKey SESSION_CREATED_FUTURE = new AttributeKey(DefaultIoFilterChain.class, "connectFuture");
 
     /** The associated session */
     private final AbstractIoSession session;
@@ -221,7 +220,9 @@ public class DefaultIoFilterChain implements IoFilterChain {
      */
     @Override
     public synchronized void addFirst(String name, IoFilter filter) {
+        // 检查当前 filterChain 中是否有当前 name 的 filter
         checkAddable(name);
+        // 把传入的 filter 注册到 head 之后
         register(head, name, filter);
     }
 
@@ -231,6 +232,7 @@ public class DefaultIoFilterChain implements IoFilterChain {
     @Override
     public synchronized void addLast(String name, IoFilter filter) {
         checkAddable(name);
+        // 把传入的 filter 注册到 tail 之前
         register(tail.prevEntry, name, filter);
     }
 
@@ -241,6 +243,7 @@ public class DefaultIoFilterChain implements IoFilterChain {
     public synchronized void addBefore(String baseName, String name, IoFilter filter) {
         EntryImpl baseEntry = checkOldName(baseName);
         checkAddable(name);
+        // 把传入的 filter 注册到 baseEntry 之前
         register(baseEntry.prevEntry, name, filter);
     }
 
@@ -251,6 +254,7 @@ public class DefaultIoFilterChain implements IoFilterChain {
     public synchronized void addAfter(String baseName, String name, IoFilter filter) {
         EntryImpl baseEntry = checkOldName(baseName);
         checkAddable(name);
+        // 把传入的 filter 注册到 baseEntry 之后
         register(baseEntry, name, filter);
     }
 
@@ -360,8 +364,7 @@ public class DefaultIoFilterChain implements IoFilterChain {
                 try {
                     newFilter.onPreAdd(this, oldFilterName, entry.getNextFilter());
                 } catch (Exception e) {
-                    throw new IoFilterLifeCycleException("onPreAdd(): " + oldFilterName + ':' + newFilter + " in "
-                            + getSession(), e);
+                    throw new IoFilterLifeCycleException("onPreAdd(): " + oldFilterName + ':' + newFilter + " in " + getSession(), e);
                 }
 
                 // Now, register the new Filter replacing the old one.
@@ -372,8 +375,7 @@ public class DefaultIoFilterChain implements IoFilterChain {
                     newFilter.onPostAdd(this, oldFilterName, entry.getNextFilter());
                 } catch (Exception e) {
                     entry.setFilter(oldFilter);
-                    throw new IoFilterLifeCycleException("onPostAdd(): " + oldFilterName + ':' + newFilter + " in "
-                            + getSession(), e);
+                    throw new IoFilterLifeCycleException("onPostAdd(): " + oldFilterName + ':' + newFilter + " in " + getSession(), e);
                 }
 
                 return;
@@ -698,6 +700,7 @@ public class DefaultIoFilterChain implements IoFilterChain {
 
     private void callNextExceptionCaught(Entry entry, IoSession session, Throwable cause) {
         // Notify the related future.
+        // 当 session 中出现了异常时，需要在其 filterChain 中 fire exceptionCaught 事件，并且需要关闭掉 session
         ConnectFuture future = (ConnectFuture) session.removeAttribute(SESSION_CREATED_FUTURE);
         if (future == null) {
             try {
@@ -708,13 +711,11 @@ public class DefaultIoFilterChain implements IoFilterChain {
                 LOGGER.warn("Unexpected exception from exceptionCaught handler.", e);
             }
         } else {
-            // Please note that this place is not the only place that
-            // calls ConnectFuture.setException().
+            // Please note that this place is not the only place that calls ConnectFuture.setException().
             if (!session.isClosing()) {
                 // Call the closeNow method only if needed
                 session.closeNow();
             }
-            
             future.setException(cause);
         }
     }
@@ -886,6 +887,11 @@ public class DefaultIoFilterChain implements IoFilterChain {
     }
 
     private class HeadFilter extends IoFilterAdapter {
+
+        /**
+         * 写事件（filterWrite）是从 TailFilter 开始往前传播，一直传送到 HeadFilter，然后由 HeadFilter 添加到 processor 的
+         * 写请求队列中，由 processor 在事件循环中进行处理
+         */
         @SuppressWarnings("unchecked")
         @Override
         public void filterWrite(NextFilter nextFilter, IoSession session, WriteRequest writeRequest) throws Exception {
@@ -905,9 +911,9 @@ public class DefaultIoFilterChain implements IoFilterChain {
             }
 
             s.increaseScheduledWriteMessages();
-
             WriteRequestQueue writeRequestQueue = s.getWriteRequestQueue();
 
+            // 如果 session 现在可以写的话，就把写请求添加到 processor 中的 writeRequestQueue 中，然后等待 Processor 来进行处理
             if (!s.isWriteSuspended()) {
                 if (writeRequestQueue.isEmpty(session)) {
                     // We can write directly the message
@@ -921,6 +927,10 @@ public class DefaultIoFilterChain implements IoFilterChain {
             }
         }
 
+        /**
+         * filterClose 事件也是由 TailFilter 往前传播到 HeadFilter，再由 HeadFilter 添加到 removingSessions 中，由 Processor
+         * 的事件循环来真正执行关闭操作
+         */
         @SuppressWarnings("unchecked")
         @Override
         public void filterClose(NextFilter nextFilter, IoSession session) throws Exception {
@@ -934,6 +944,11 @@ public class DefaultIoFilterChain implements IoFilterChain {
             session.getHandler().sessionCreated(session);
         }
 
+        /**
+         * 在调用 connector.connect 方法之后，会获取到 ConnectFuture 对象，并且 ConnectFuture 会保存到对应 session
+         * 的 AttributeMap 中。而在 session 创建初始化并且连接成功之后，就会 fire sessionOpened 事件，传播到 TailFilter，
+         * 然后把 session 设置到 future 中，唤醒阻塞在 future 上的线程
+         */
         @Override
         public void sessionOpened(NextFilter nextFilter, IoSession session) throws Exception {
             try {
@@ -948,6 +963,12 @@ public class DefaultIoFilterChain implements IoFilterChain {
             }
         }
 
+        /**
+         * Processor 在关闭连接时，会在 filterChain 中 fire sessionClosed 事件：
+         * 1.回调 handler 的 sessionClosed 方法
+         * 2.销毁 session 上的 WriteRequestQueue 和 AttributeMap
+         * 3.清理 filterChain
+         */
         @Override
         public void sessionClosed(NextFilter nextFilter, IoSession session) throws Exception {
             AbstractIoSession s = (AbstractIoSession) session;

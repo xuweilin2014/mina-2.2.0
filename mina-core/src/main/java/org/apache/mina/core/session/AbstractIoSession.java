@@ -72,11 +72,9 @@ public abstract class AbstractIoSession implements IoSession {
     /** The service which will manage this session */
     private final IoService service;
 
-    private static final AttributeKey READY_READ_FUTURES_KEY = new AttributeKey(AbstractIoSession.class,
-            "readyReadFutures");
+    private static final AttributeKey READY_READ_FUTURES_KEY = new AttributeKey(AbstractIoSession.class, "readyReadFutures");
 
-    private static final AttributeKey WAITING_READ_FUTURES_KEY = new AttributeKey(AbstractIoSession.class,
-            "waitingReadFutures");
+    private static final AttributeKey WAITING_READ_FUTURES_KEY = new AttributeKey(AbstractIoSession.class, "waitingReadFutures");
 
     private static final IoFutureListener<CloseFuture> SCHEDULED_COUNTER_RESETTER = new IoFutureListener<CloseFuture>() {
         public void operationComplete(CloseFuture future) {
@@ -512,6 +510,18 @@ public abstract class AbstractIoSession implements IoSession {
     }
 
     /**
+     * 这里总结一下 Apache Mina 的发送/接收数据过程，这两个过程对于客户端与服务端类似。
+     *   发送：
+     *      首先客户端在创建完 session 之后，调用 session.write 方法将数据信息写出去，在 AbstractIoSession#wrire 方法中，
+     *      会把写的信息包装成一个写请求 WriteRequest，然后在 session 的 filterChain 中，fire filterWrite 事件，从 TailFilter
+     *      一直传播到 HeadFilter，这时会把 WriteRequest 添加到 Processor 的 WriteRequestQueue 中，等待 Processor 事件循环
+     *      的处理，将数据真正发送出去。最后 Processor 在发送数据之后，就会 fire messageSent 事件，只不过是从 HeadFilter 一直传播
+     *      到 TailFilter 中，最后在 TailFilter 回调 handler 的 messageSent 方法。对于服务端，也是调用 session.write 方法，过程类似
+     *   接收：
+     *      客户端与服务端之间的连接 session 上的读写事件是由 Processor 来进行处理的，当有数据发送过来时，触发 OP_READ 事件。然后
+     *      Processor 进行读取操作，读取完毕之后，会在 session 的 filterChain 上 fire messageReceived 事件。然后由 HeadFilter 一直
+     *      传播到 TailFilter，最后回调 handler 中的 messageReceived 交由用户自定义的业务层处理。
+     *
      * {@inheritDoc}
      */
     public WriteFuture write(Object message) {
@@ -569,13 +579,13 @@ public abstract class AbstractIoSession implements IoSession {
         }
 
         // Now, we can write the message. First, create a future
-        // 创建一个 WriteRequest 对象，以及一个 WriteFuture 对象，这个 future 对象用来表明写操作是否已经完成
+        // 创建一个 WriteRequest 对象，以及一个 WriteFuture 对象，这个 future 对象用户可以用来查看写操作是否已经完成
         WriteFuture writeFuture = new DefaultWriteFuture(this);
         WriteRequest writeRequest = new DefaultWriteRequest(message, writeFuture, remoteAddress);
 
         // Then, get the chain and inject the WriteRequest into it
         // 获取与当前 session 关联的 filterChain，然后 fire filterWrite 事件，将 writeRequest 通过 filterChain 发送出去，
-        // 在 headFilter 中，writeRequest 会被保存到 WriteRequestQueue 队列中
+        // 在 headFilter 中，writeRequest 会被保存到 WriteRequestQueue 队列中，随后 processor 会处理队列中的写请求
         IoFilterChain filterChain = getFilterChain();
         filterChain.fireFilterWrite(writeRequest);
 

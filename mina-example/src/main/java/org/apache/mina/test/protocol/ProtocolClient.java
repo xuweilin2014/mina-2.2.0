@@ -17,7 +17,7 @@ public class ProtocolClient {
 
     private static final String HOST = "127.0.0.1";
     private static final int PORT = 7080;
-    public static final int fil = 100;
+    public static final int fil = 5;
 
     public static void main(String[] args) {
         IoConnector connector = new NioSocketConnector();
