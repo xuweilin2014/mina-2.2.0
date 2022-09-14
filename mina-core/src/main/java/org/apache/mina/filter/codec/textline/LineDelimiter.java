@@ -38,10 +38,21 @@ public class LineDelimiter {
     /** the line delimiter constant of the current O/S. */
     public static final LineDelimiter DEFAULT;
 
-    /** Compute the default delimiter on the current OS */
+    /* Compute the default delimiter on the current OS */
     static {
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
         PrintWriter out = new PrintWriter(bout, true);
+        // PrinterWriter 类的 println(String x) 和 write(String x) 方法都表示把输入写到输出中，但是要注意的是
+        // println(String x) 方法会在文本后面添加上分隔符，如 windows 下为"\r\n",不同操作系统间有区别。这个方法在源码中的
+        // 实现为：
+        //      public void println(boolean x) {
+        //        synchronized (lock) {
+        //            print(x);
+        //            println();
+        //        }
+        //    }
+        // 而 println() 则直接调用 newLine() 方法，最后再调用 out.write(lineSeparator)，写入分隔符，因此后面可以直接通过
+        // bout.toByteArray 获取到此 OS 上的分隔符
         out.println();
         DEFAULT = new LineDelimiter(new String(bout.toByteArray()));
     }

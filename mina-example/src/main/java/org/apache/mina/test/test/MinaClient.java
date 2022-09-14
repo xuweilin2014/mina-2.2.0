@@ -8,7 +8,7 @@ import org.apache.mina.filter.codec.textline.LineDelimiter;
 import org.apache.mina.filter.codec.textline.TextLineCodecFactory;
 import org.apache.mina.transport.socket.nio.NioSocketConnector;
 
-import java.io.IOException;
+import java.io.*;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 
@@ -34,7 +34,8 @@ public class MinaClient {
         // Wait until the connection attempt is finished.
         future.awaitUninterruptibly();
         session = future.getSession();
-        session.write("你好！watchman");
+
+        session.write("watch\r\nass\r\nyour");
         // Wait until the connection is closed
         session.getCloseFuture().awaitUninterruptibly();
         connector.dispose();

@@ -148,6 +148,7 @@ public class TextLineEncoder extends ProtocolEncoderAdapter {
     public void encode(IoSession session, Object message, ProtocolEncoderOutput out) throws Exception {
         CharsetEncoder encoder = (CharsetEncoder) session.getAttribute(ENCODER);
 
+        // 如果 encoder 是 null，需要通过 charset 重新创建一个 encoder，并且将其保存到 session 中
         if (encoder == null) {
             encoder = charset.newEncoder();
             session.setAttribute(ENCODER, encoder);
@@ -155,13 +156,16 @@ public class TextLineEncoder extends ProtocolEncoderAdapter {
 
         String value = message == null ? "" : message.toString();
         IoBuffer buf = IoBuffer.allocate(value.length()).setAutoExpand(true);
+        // 把 value 字符串使用 encoder 编码后保存到 buf 中
         buf.putString(value, encoder);
 
         if (buf.position() > maxLineLength) {
             throw new IllegalArgumentException("Line length: " + buf.position());
         }
 
+        // 在 value 字符串的尾部添加 \r\n 字符，表示换行
         buf.putString(delimiter.getValue(), encoder);
+        // 对 buf 进行 flip，然后将 buf 保存到 ProtocolEncoderOutput 中的 messageQueue 中
         buf.flip();
         out.write(buf);
     }
