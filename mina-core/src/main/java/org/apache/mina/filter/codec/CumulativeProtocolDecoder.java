@@ -99,10 +99,17 @@ import org.apache.mina.core.session.IoSession;
  * @author <a href="http://mina.apache.org">Apache MINA Project</a>
  */
 public abstract class CumulativeProtocolDecoder extends ProtocolDecoderAdapter {
-    /** The buffer used to store the data in the session */
+    /**
+     * The buffer used to store the data in the session
+     * session 中的这个 BUFFER 就是用来存储从 channel 中读取的数据，如果只接收到半包的数据，那么就把半包的
+     * 数据继续保存在 BUFFER 中，等待下次继续读取数据到 BUFFER 中再次进行解析。另外要注意的是， BUFFER 中的
+     * limit = capacity，而 position 要么等于 0，要么等于某一个特定的数字，这样可以直接调用 BUFFER.put 往
+     * 其中添加字节数据。
+     */
     private static final AttributeKey BUFFER = new AttributeKey(CumulativeProtocolDecoder.class, "buffer");
     
-    /** A flag set to true if we handle fragmentation accordingly to the TransportMetadata setting. 
+    /**
+     * A flag set to true if we handle fragmentation accordingly to the TransportMetadata setting.
      * It can be set to false if needed (UDP with fragments, for instance). the default value is 'true'
      */
     private boolean transportMetadataFragmentation = true;
@@ -137,15 +144,18 @@ public abstract class CumulativeProtocolDecoder extends ProtocolDecoderAdapter {
             return;
         }
 
+        // 表示是否使用的是 session 中的 BUFFER 来保存数据
         boolean usingSessionBuffer = true;
         IoBuffer buf = (IoBuffer) session.getAttribute(BUFFER);
-        // If we have a session buffer, append data to that; otherwise
-        // use the buffer read from the network directly.
+        // If we have a session buffer, append data to that; otherwise use the buffer read from the network directly.
+        // 如果在 session 中有 BUFFER 属性，那么就使用对应的 BUFFER 来存储数据，否则直接使用传过来的 IoBuffer 对象 in
         if (buf != null) {
             boolean appended = false;
             // Make sure that the buffer is auto-expanded.
             if (buf.isAutoExpand()) {
                 try {
+                    // 在 session 中的 buf 的 position 为 0（初始情况）或者其它值，而 limit = capacity，
+                    // 因此可以直接往其中添加 ByteBuffer 数据，buf 的 position 会增加 in.remaining() 值
                     buf.put(in);
                     appended = true;
                 } catch (IllegalStateException | IndexOutOfBoundsException e) {
@@ -154,11 +164,17 @@ public abstract class CumulativeProtocolDecoder extends ProtocolDecoderAdapter {
                 }
             }
 
+            // 如果成功把 in 添加到 buf 中，那么接下来还要对 buf 进行翻转，limit = position，position = 0，
+            // 这样在 decode 方法中可以直接读取 buf 中的数据
             if (appended) {
                 buf.flip();
+
+            // 如果添加失败，那么就重新分配一个 newBuf，将 buf 和 in 中的数据拷贝进去（buf 中可能有上次读取残留下来的数据），
+            // 同样再把 newBuf 进行 flip，使得 decode 可以进行读取操作，最后设置到 session 中
             } else {
-                // Reallocate the buffer if append operation failed due to
-                // derivation or disabled auto-expansion.
+                // Reallocate the buffer if append operation failed due to derivation or disabled auto-expansion.
+                // 由于 buf 中的 position 为 0（初始情况）或者其它值，而 limit = capacity，因此需要 flip。而 in 这个 buffer
+                // 是由 Processor 读取之后会自动进行 flip 操作，所以这里没必要再重复操作
                 buf.flip();
                 IoBuffer newBuf = IoBuffer.allocate(buf.remaining() + in.remaining()).setAutoExpand(true);
                 newBuf.order(buf.order());
@@ -177,30 +193,43 @@ public abstract class CumulativeProtocolDecoder extends ProtocolDecoderAdapter {
         }
 
         for (;;) {
+            // 记录下 buf 当前 position 的位置
             int oldPos = buf.position();
+            // 调用 doDecode 进行真正的解码操作，在解码的过程中，limit 和 capacity 都不会发生改变，返回的结果有两种情况：
+            // 1.返回 true：表明当前这次消息解码成功完成，但是 buf 中可能还有额外的几条数据，doDecode 方法希望被多调用几次
+            // 2.返回 false：表明当前消息解码失败，可能是因为 buf 中只有半包数据，需要等待剩下的数据到来
             boolean decoded = doDecode(session, buf, out);
             if (decoded) {
                 if (buf.position() == oldPos) {
                     throw new IllegalStateException("doDecode() can't return true when buffer is not consumed.");
                 }
 
+                // 如果解码成功，同时 buf 中没有额外的数据时，直接退出
                 if (!buf.hasRemaining()) {
                     break;
                 }
+            // 如果解码失败，直接退出
             } else {
                 break;
             }
         }
 
-        // if there is any data left that cannot be decoded, we store
-        // it in a buffer in the session and next time this decoder is
+        // if there is any data left that cannot be decoded, we store it in a buffer in the session and next time this decoder is
         // invoked the session buffer gets appended to
+        // 如果 buf 中还有一部分数据没有解码完成
         if (buf.hasRemaining()) {
+            // 如果 buf 被保存在 session 中，那么就直接将 buf 进行 compact，假设 buf 中 pos = 12，limit = 35，capacity = 50，
+            // 那么 compact 之后的 buf 就为 pos = 23，limit = capacity = 50，也就是把从 buf 中 pos 到 limit 之间的数据拷贝
+            // 到 0 到 limit - pos - 1 之间，最后将 limit 设置为 capacity，pos 设置为 limit - pos，这样接下来就可以直接通过 buf.put
+            // 往 buf 中拷贝数据
             if (usingSessionBuffer && buf.isAutoExpand()) {
                 buf.compact();
             } else {
+                // 如果 buf 不是从 session 中获取到的，将 buf 保存到 session 中
                 storeRemainingInSession(buf, session);
             }
+
+        // 如果 buffer 中没有剩余数据，那么直接从 session 中将其移除掉
         } else {
             if (usingSessionBuffer) {
                 removeSessionBuffer(session);
