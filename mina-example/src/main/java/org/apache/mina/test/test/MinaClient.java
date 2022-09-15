@@ -4,6 +4,8 @@ import org.apache.mina.core.future.ConnectFuture;
 import org.apache.mina.core.service.IoConnector;
 import org.apache.mina.core.session.IoSession;
 import org.apache.mina.filter.codec.ProtocolCodecFilter;
+import org.apache.mina.filter.codec.prefixedstring.PrefixedStringCodecFactory;
+import org.apache.mina.filter.codec.serialization.ObjectSerializationCodecFactory;
 import org.apache.mina.filter.codec.textline.LineDelimiter;
 import org.apache.mina.filter.codec.textline.TextLineCodecFactory;
 import org.apache.mina.transport.socket.nio.NioSocketConnector;
@@ -11,6 +13,7 @@ import org.apache.mina.transport.socket.nio.NioSocketConnector;
 import java.io.*;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.Date;
 
 public class MinaClient {
 
@@ -23,9 +26,7 @@ public class MinaClient {
         connector.setConnectTimeoutMillis(10 * 1000);
         // 设置编解码器
         connector.getFilterChain().addLast("codec", new ProtocolCodecFilter(
-                new TextLineCodecFactory(
-                        StandardCharsets.UTF_8, LineDelimiter.WINDOWS, LineDelimiter.WINDOWS
-                )
+                new PrefixedStringCodecFactory(StandardCharsets.UTF_8)
         ));
         // 添加自定义的 IoFilter
         connector.getFilterChain().addLast("client-filter", new MyClientFilter());
@@ -35,7 +36,7 @@ public class MinaClient {
         future.awaitUninterruptibly();
         session = future.getSession();
 
-        session.write("watch\r\nass\r\nyour");
+        session.write("hello world");
         // Wait until the connection is closed
         session.getCloseFuture().awaitUninterruptibly();
         connector.dispose();

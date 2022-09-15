@@ -31,18 +31,19 @@ public class MyServerHandler extends IoHandlerAdapter {
 
     @Override
     public void exceptionCaught(IoSession session, Throwable cause) throws Exception {
+        System.out.println(cause.getMessage());
         System.out.println("exceptionCaught");
     }
 
     @Override
     public void messageReceived(IoSession session, Object message) throws Exception {
-        String msg = (String) message;
-        System.out.println("服务端接收到数据：" + msg);
-        if ("exit".equals(msg)) {
-            session.closeNow();
-            return;
-        }
-        WriteFuture writeFuture = session.write(new Date());
+//        String msg = (String) message;
+//        System.out.println("服务端接收到数据：" + msg);
+//        if ("exit".equals(msg)) {
+//            session.closeNow();
+//            return;
+//        }
+        session.write("watch your ass");
     }
 
     @Override

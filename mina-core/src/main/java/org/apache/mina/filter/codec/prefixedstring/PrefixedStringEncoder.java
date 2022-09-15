@@ -137,6 +137,7 @@ public class PrefixedStringEncoder extends ProtocolEncoderAdapter {
     public void encode(IoSession session, Object message, ProtocolEncoderOutput out) throws Exception {
         String value = (String) message;
         IoBuffer buffer = IoBuffer.allocate(value.length()).setAutoExpand(true);
+        // 按照 length | value 字段顺序，将 value 保存到 buffer 中，其中 length 字段存储 value 字符串的长度
         buffer.putPrefixedString(value, prefixLength, charset.newEncoder());
         if (buffer.position() > maxDataLength) {
             throw new IllegalArgumentException("Data length: " + buffer.position());

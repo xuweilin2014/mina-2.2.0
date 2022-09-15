@@ -125,6 +125,8 @@ public class PrefixedStringDecoder extends CumulativeProtocolDecoder {
      */
     @Override
     protected boolean doDecode(IoSession session, IoBuffer in, ProtocolDecoderOutput out) throws Exception {
+        // 首先检查 buffer 中是否存在 prefixLength 字段，同时检查 buffer 中除了 prefixLength 字段外的长度是否大于
+        // length 字段中指定的值
         if (in.prefixedDataAvailable(prefixLength, maxDataLength)) {
             String msg = in.getPrefixedString(prefixLength, charset.newDecoder());
             out.write(msg);

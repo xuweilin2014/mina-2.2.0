@@ -8,8 +8,8 @@ public class MyClientHandler extends IoHandlerAdapter {
 
     @Override
     public void messageReceived(IoSession session, Object message) throws Exception {
-        String msg = (String) message;
-        System.out.println("客户端收到消息：" + msg);
+//        String msg = (String) message;
+        System.out.println("客户端收到消息：" + message);
     }
 
     @Override
@@ -34,6 +34,7 @@ public class MyClientHandler extends IoHandlerAdapter {
 
     @Override
     public void exceptionCaught(IoSession session, Throwable cause) throws Exception {
+        System.out.println(cause.getMessage());
         System.out.println("exceptionCaught");
     }
 }

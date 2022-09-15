@@ -30,6 +30,7 @@ import org.apache.mina.filter.codec.demux.MessageEncoder;
  * @author <a href="http://mina.apache.org">Apache MINA Project</a>
  */
 public class AddMessageEncoder<T extends AddMessage> extends AbstractMessageEncoder<T> {
+
     public AddMessageEncoder() {
         super(Constants.ADD);
     }

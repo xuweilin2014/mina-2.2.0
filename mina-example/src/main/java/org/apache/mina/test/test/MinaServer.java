@@ -3,6 +3,8 @@ package org.apache.mina.test.test;
 import org.apache.mina.core.service.IoAcceptor;
 import org.apache.mina.core.session.IdleStatus;
 import org.apache.mina.filter.codec.ProtocolCodecFilter;
+import org.apache.mina.filter.codec.prefixedstring.PrefixedStringCodecFactory;
+import org.apache.mina.filter.codec.serialization.ObjectSerializationCodecFactory;
 import org.apache.mina.filter.codec.textline.LineDelimiter;
 import org.apache.mina.filter.codec.textline.TextLineCodecFactory;
 import org.apache.mina.transport.socket.nio.NioSocketAcceptor;
@@ -41,9 +43,7 @@ public class MinaServer {
         acceptor = new NioSocketAcceptor();
         // 设置编解码器
         acceptor.getFilterChain().addLast("codec", new ProtocolCodecFilter(
-                new TextLineCodecFactory(
-                        StandardCharsets.UTF_8, LineDelimiter.WINDOWS, LineDelimiter.WINDOWS
-                )
+                new PrefixedStringCodecFactory(StandardCharsets.UTF_8)
         ));
         acceptor.getFilterChain().addLast("server-filter", new MyServerFilter());
         acceptor.getSessionConfig().setReadBufferSize(1024);

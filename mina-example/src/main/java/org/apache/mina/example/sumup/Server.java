@@ -43,16 +43,13 @@ public class Server {
 
         // Prepare the service configuration.
         if (USE_CUSTOM_CODEC) {
-            acceptor.getFilterChain()
-                    .addLast(
-                            "codec",
-                            new ProtocolCodecFilter(
-                                    new SumUpProtocolCodecFactory(true)));
+            acceptor.getFilterChain().addLast("codec", new ProtocolCodecFilter(
+                                    new SumUpProtocolCodecFactory(true))
+            );
         } else {
-            acceptor.getFilterChain().addLast(
-                    "codec",
-                    new ProtocolCodecFilter(
-                            new ObjectSerializationCodecFactory()));
+            acceptor.getFilterChain().addLast("codec", new ProtocolCodecFilter(
+                            new ObjectSerializationCodecFactory())
+            );
         }
         acceptor.getFilterChain().addLast("logger", new LoggingFilter());
 

@@ -33,6 +33,7 @@ import org.apache.mina.filter.codec.demux.MessageDecoderResult;
  * @author <a href="http://mina.apache.org">Apache MINA Project</a>
  */
 public abstract class AbstractMessageDecoder implements MessageDecoder {
+
     private final int type;
 
     private int sequence;
@@ -58,8 +59,7 @@ public abstract class AbstractMessageDecoder implements MessageDecoder {
         return MessageDecoderResult.NOT_OK;
     }
 
-    public MessageDecoderResult decode(IoSession session, IoBuffer in,
-            ProtocolDecoderOutput out) throws Exception {
+    public MessageDecoderResult decode(IoSession session, IoBuffer in, ProtocolDecoderOutput out) throws Exception {
         // Try to skip header if not read.
         if (!readHeader) {
             in.getShort(); // Skip 'type'.
@@ -86,6 +86,5 @@ public abstract class AbstractMessageDecoder implements MessageDecoder {
      * @param in The incoming buffer
      * @return <tt>null</tt> if the whole body is not read yet
      */
-    protected abstract AbstractMessage decodeBody(IoSession session,
-            IoBuffer in);
+    protected abstract AbstractMessage decodeBody(IoSession session, IoBuffer in);
 }
