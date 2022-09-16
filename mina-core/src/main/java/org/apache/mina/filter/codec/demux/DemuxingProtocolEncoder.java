@@ -45,6 +45,7 @@ import org.apache.mina.util.IdentityHashSet;
  * @see MessageEncoderFactory
  * @see MessageEncoder
  */
+@SuppressWarnings("DuplicatedCode")
 public class DemuxingProtocolEncoder implements ProtocolEncoder {
 
     private static final AttributeKey STATE = new AttributeKey(DemuxingProtocolEncoder.class, "state");
@@ -75,6 +76,7 @@ public class DemuxingProtocolEncoder implements ProtocolEncoder {
         boolean registered = false;
         
         if (MessageEncoder.class.isAssignableFrom(encoderClass)) {
+            // 将 messageType -> factory 映射添加到 type2encoderFactory 类中
             addMessageEncoder(messageType, new DefaultConstructorMessageEncoderFactory(encoderClass));
             registered = true;
         }
@@ -114,8 +116,7 @@ public class DemuxingProtocolEncoder implements ProtocolEncoder {
 
         synchronized (type2encoderFactory) {
             if (type2encoderFactory.containsKey(messageType)) {
-                throw new IllegalStateException("The specified message type (" + messageType.getName()
-                        + ") is registered already.");
+                throw new IllegalStateException("The specified message type (" + messageType.getName() + ") is registered already.");
             }
 
             type2encoderFactory.put(messageType, factory);
@@ -180,6 +181,14 @@ public class DemuxingProtocolEncoder implements ProtocolEncoder {
         return findEncoder(state, type, null);
     }
 
+    /**
+     * 查找当前 type 类型的 message 对应的编码器，通过不断递归来查找，先查找 type 类本身，接下来查找 type 类的接口，
+     * 最后再查找 type 类的父类。父类又会经历同样的过程，先本身，再接口，最后再是父类的父类。
+     * @param state
+     * @param type
+     * @param triedClasses
+     * @return
+     */
     @SuppressWarnings("unchecked")
     private MessageEncoder<Object> findEncoder(State state, Class<?> type, Set<Class<?>> triedClasses) {
         @SuppressWarnings("rawtypes")
@@ -189,31 +198,24 @@ public class DemuxingProtocolEncoder implements ProtocolEncoder {
             return null;
         }
 
-        /*
-         * Try the cache first.
-         */
+        // Try the cache first.
         encoder = state.findEncoderCache.get(type);
 
         if (encoder != null) {
             return encoder;
         }
 
-        /*
-         * Try the registered encoders for an immediate match.
-         */
+        // Try the registered encoders for an immediate match.
         encoder = state.type2encoder.get(type);
 
         if (encoder == null) {
-            /*
-             * No immediate match could be found. Search the type's interfaces.
-             */
 
+            // No immediate match could be found. Search the type's interfaces.
             if (triedClasses == null) {
                 triedClasses = new IdentityHashSet<>();
             }
 
             triedClasses.add(type);
-
             Class<?>[] interfaces = type.getInterfaces();
 
             for (Class<?> element : interfaces) {
@@ -226,11 +228,7 @@ public class DemuxingProtocolEncoder implements ProtocolEncoder {
         }
 
         if (encoder == null) {
-            /*
-             * No match in type's interfaces could be found. Search the
-             * superclass.
-             */
-
+            // No match in type's interfaces could be found. Search the superclass.
             Class<?> superclass = type.getSuperclass();
 
             if (superclass != null) {

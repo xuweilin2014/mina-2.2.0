@@ -104,13 +104,16 @@ public class DemuxingProtocolDecoder extends CumulativeProtocolDecoder {
         }
 
         try {
+            // 检查 decoderClass 中是否有默认的构造函数，如果没有的话，直接抛出异常
             decoderClass.getConstructor(EMPTY_PARAMS);
         } catch (NoSuchMethodException e) {
             throw new IllegalArgumentException("The specified class doesn't have a public default constructor.");
         }
 
         boolean registered = false;
+        // decoderClass 是否实现了 MessageDecoder 接口
         if (MessageDecoder.class.isAssignableFrom(decoderClass)) {
+            // 将 decoderClass 使用一个工厂类封装起来，在调用工厂类的 getDecoder 方法时，需要通过反射创建实例对象
             addMessageDecoder(new DefaultConstructorMessageDecoderFactory(decoderClass));
             registered = true;
         }
@@ -131,7 +134,7 @@ public class DemuxingProtocolDecoder extends CumulativeProtocolDecoder {
 
     /**
      * Adds a new message decoder factory
-     * 
+     * 将此 factory 保存到 decoderFactories 数组中
      * @param factory The decoder factory
      */
     public void addMessageDecoder(MessageDecoderFactory factory) {
@@ -164,8 +167,14 @@ public class DemuxingProtocolDecoder extends CumulativeProtocolDecoder {
                 MessageDecoderResult result;
 
                 try {
+                    // decodable 方法会返回以下三个值：
+                    // 1.NEED_DATA：接收到的消息的消息体还不是很完整
+                    // 2.OK：接收到的消息的类型和解码器的类型 decoder 相符（具体的做法由用户自己定义，举例来说，可以将使用消息的前两个
+                    //   字节保存消息的类型）
+                    // 3.NOT_OK：如果消息类型和 decoder 不匹配
                     result = decoder.decodable(session, in);
                 } finally {
+                    // 恢复 in 这个 buffer 的状态
                     in.position(pos);
                     in.limit(limit);
                 }
@@ -175,11 +184,13 @@ public class DemuxingProtocolDecoder extends CumulativeProtocolDecoder {
                     break;
                 } else if (result == MessageDecoder.NOT_OK) {
                     undecodables++;
+                // decodable 方法返回的 MessageDecoder 结果不在三种 OK、NOT_OK 以及 NEED_DATA 之中
                 } else if (result != MessageDecoder.NEED_DATA) {
                     throw new IllegalStateException("Unexpected decode result (see your decodable()): " + result);
                 }
             }
 
+            // 如果 undecodables 和 decoders.length 相等的话，说明没有找到合适的解码器，抛出异常
             if (undecodables == decoders.length) {
                 // Throw an exception if all decoders cannot decode data.
                 String dump = in.getHexDump();
@@ -189,6 +200,7 @@ public class DemuxingProtocolDecoder extends CumulativeProtocolDecoder {
                 throw e;
             }
 
+            // 如果 undecodables 和 decoders.length 不相等，且没有找到 decoder，说明接收到的数据还太少
             if (state.currentDecoder == null) {
                 // Decoder is not determined yet (i.e. we need more data)
                 return false;
@@ -254,6 +266,9 @@ public class DemuxingProtocolDecoder extends CumulativeProtocolDecoder {
         return state;
     }
 
+    /**
+     * 在 State 类中保存了所有的解码器，以及当前消息所使用的解码器
+     */
     private class State {
         private final MessageDecoder[] decoders;
 
@@ -269,6 +284,8 @@ public class DemuxingProtocolDecoder extends CumulativeProtocolDecoder {
         }
     }
 
+    // SingletonMessageDecoderFactory 是一个静态内部类，它不会使用到外部类的属性和方法，把它设为内部类
+    // 只是 SingletonMessageDecoderFactory 类只在当前类中使用，为了更好地耦合。
     private static class SingletonMessageDecoderFactory implements MessageDecoderFactory {
         private final MessageDecoder decoder;
 
@@ -288,6 +305,8 @@ public class DemuxingProtocolDecoder extends CumulativeProtocolDecoder {
         }
     }
 
+    // DefaultConstructorMessageDecoderFactory 是一个静态内部类，它不会使用到外部类的属性和方法，把它设为内部类
+    // 只是 DefaultConstructorMessageDecoderFactory 类只在当前类中使用，为了更好地耦合。
     private static class DefaultConstructorMessageDecoderFactory implements MessageDecoderFactory {
         private final Class<?> decoderClass;
 

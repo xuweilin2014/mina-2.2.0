@@ -32,6 +32,10 @@ import org.apache.mina.filter.codec.ProtocolEncoder;
  * incoming messages and buffers to appropriate {@link MessageEncoder}s and 
  * {@link MessageDecoder}s.
  *
+ * 有多个不同种类的消息发送过来时，可以从 DemuxingProtocolCodecFactory 类中获取到 DemuxingProtocolEncoder
+ * 和 DemuxingProtocolDecoder。其中 DemuxingProtocolEncoder 可以根据消息 message 的种类来获取到对应的编码器；
+ * DemuxingProtocolDecoder 根据消息的类型（消息的前几个字节）来选择对应的解码器。
+ *
  * @author <a href="http://mina.apache.org">Apache MINA Project</a>
  */
 public class DemuxingProtocolCodecFactory implements ProtocolCodecFactory {
