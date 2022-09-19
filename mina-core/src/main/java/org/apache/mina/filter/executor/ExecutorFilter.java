@@ -35,6 +35,8 @@ import org.apache.mina.core.session.IoSession;
 import org.apache.mina.core.write.WriteRequest;
 
 /**
+ *
+ *
  * A filter that forwards I/O events to {@link Executor} to enforce a certain
  * thread model while allowing the events per session to be processed
  * simultaneously. You can apply various thread model by inserting this filter
@@ -144,7 +146,8 @@ public class ExecutorFilter extends IoFilterAdapter {
         IoEventType.MESSAGE_SENT, 
         IoEventType.SESSION_CLOSED,
         IoEventType.SESSION_IDLE, 
-        IoEventType.SESSION_OPENED };
+        IoEventType.SESSION_OPENED
+    };
 
     /**
      * (Convenience constructor) Creates a new instance with a new
@@ -224,8 +227,7 @@ public class ExecutorFilter extends IoFilterAdapter {
      * @param unit Time unit used for the keepAlive value
      * @param queueHandler The queue used to store events
      */
-    public ExecutorFilter(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
-            IoEventQueueHandler queueHandler) {
+    public ExecutorFilter(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, IoEventQueueHandler queueHandler) {
         // Create a new default Executor
         Executor newExecutor = new OrderedThreadPoolExecutor(corePoolSize, maximumPoolSize, 
             keepAliveTime, unit, Executors.defaultThreadFactory(), queueHandler);
@@ -244,8 +246,7 @@ public class ExecutorFilter extends IoFilterAdapter {
      * @param unit Time unit used for the keepAlive value
      * @param threadFactory The factory used to create threads
      */
-    public ExecutorFilter(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
-            ThreadFactory threadFactory) {
+    public ExecutorFilter(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, ThreadFactory threadFactory) {
         // Create a new default Executor
         Executor newExecutor = new OrderedThreadPoolExecutor(corePoolSize, maximumPoolSize, 
             keepAliveTime, unit, threadFactory, null);
@@ -268,7 +269,7 @@ public class ExecutorFilter extends IoFilterAdapter {
     public ExecutorFilter(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
             ThreadFactory threadFactory, IoEventQueueHandler queueHandler) {
         // Create a new default Executor
-        Executor newExecutor = new OrderedThreadPoolExecutor(corePoolSize, maximumPoolSize, 
+        Executor newExecutor = new OrderedThreadPoolExecutor(corePoolSize, maximumPoolSize,
             keepAliveTime, unit, threadFactory, queueHandler);
 
         // Initialise the filter
@@ -333,8 +334,7 @@ public class ExecutorFilter extends IoFilterAdapter {
      * @param unit Time unit used for the keepAlive value
      * @param eventTypes The event for which the executor will be used
      */
-    public ExecutorFilter(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
-            IoEventType... eventTypes) {
+    public ExecutorFilter(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, IoEventType... eventTypes) {
         // Create a new default Executor
         Executor newExecutor = new OrderedThreadPoolExecutor(corePoolSize, maximumPoolSize, 
             keepAliveTime, unit, Executors.defaultThreadFactory(), null);
@@ -462,13 +462,14 @@ public class ExecutorFilter extends IoFilterAdapter {
             throw new IllegalArgumentException("executor");
         }
 
+        // 初始化 ExecutionFilter 当中的 eventTypes 对象
         initEventTypes(eventTypes);
         this.executor = executor;
         this.manageableExecutor = manageableExecutor;
     }
 
     /**
-     * Shuts down the underlying executor if this filter hase been created via
+     * Shuts down the underlying executor if this filter has been created via
      * a convenience constructor.
      */
     @Override
