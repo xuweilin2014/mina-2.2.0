@@ -19,11 +19,7 @@
  */
 package org.apache.mina.filter.executor;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Queue;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executors;
@@ -49,14 +45,20 @@ import org.slf4j.LoggerFactory;
  * If you don't need to maintain the order of events per session, please use
  * {@link UnorderedThreadPoolExecutor}.
  *
+ * 关于 OrderedThreadPoolExecutor 如何保证事件顺序执行的的分析：
+ *
  * OrderedThreadPoolExecutor 是一个维持 IoEvent 事件顺序的线程池，即线程池中对于 IoEvent 事件的执行顺序等于事件被保存到任务队列的顺序，
  * 或者说等于 IoEvent 事件发生的顺序（ExecutionFilter 中一个事件一旦发生就会被保存到任务队列中）。OrderedThreadPoolExecutor 为了保证
  * IoEvent 事件执行的顺序性，大致的思想就是一个 session 上发生的 IoEvent 事件被保存到 taskQueue 中，并且 taskQueue 和 session 一一
- * 绑定，taskQueue 保存到 session 的 AttributeMap 中，只有在获取到 session 之后才能进一步获取到任务队列处理其中的任务。而 session 保存在
- * 一个阻塞队列 waitingSessions 中（阻塞队列使用锁保证了线程安全），在某一时刻只能有一个线程从 waitingSessions 中获取到 session，其它获取
- * 不到 session 的线程只能阻塞。因而 session 中的任务队列 taskQueue 中的任务在某一时刻【全部由】某一个线程处理，只有全部处理完毕之后才有可能
- * 切换到下一个线程获取到 session 继续处理其中的所有任务。所以任务队列中的任务在某一段时间内全由线程 A 处理，在另外某一段时间内全由线程 B 处理，
- * 不存在 race contention 的情况。
+ * 绑定，taskQueue 保存到 session 的 AttributeMap 中，只有在获取到 session 之后才能进一步获取到任务队列处理其中的任务。
+ *
+ * 由于任务队列 taskQueue 是一个 ConcurrentLinkedQueue 类对象，因此先发生保存到其中的事件，肯定会先获取到然后执行（先进先出）。这样就保证了
+ * 根据事件发生的先后顺序保存到任务队列中。
+ *
+ * 而 session 保存在一个阻塞队列 waitingSessions 中（阻塞队列使用锁保证了线程安全），在某一时刻只能有一个线程从 waitingSessions 中获取到
+ * session，其它获取不到 session 的线程只能阻塞。因而 session 中的任务队列 taskQueue 中的任务在某一时刻【全部由】某一个线程处理，只有全部
+ * 处理完毕之后才有可能切换到下一个线程获取到 session 继续处理其中的所有任务。所以任务队列中的任务在某一段时间内全由线程 A 处理，在另外某一段
+ * 时间内全由线程 B 处理，不存在 race contention 的情况。
  *
  * 具体的实现方式为通过一个变量 processingCompleted 来表示当前 session 中的任务队列是否全部处理完毕，如果是的话为 true，否则为 false。
  * 另外初始化的时候，processingCompleted 为 true，因为此时 taskQueue 为空。只有当 processingCompleted 为 true 时，线程才会把 session
@@ -64,6 +66,18 @@ import org.slf4j.LoggerFactory;
  * 到 session，然后处理此 session 对应的任务队列中所有的任务，其它线程只能阻塞等待。等到此线程处理完任务队列之后，会把 processingCompleted
  * 设置为 true，然后 session 就有可能被添加到 waitingSessions 中，继续被下一个线程获取到。
  *
+ * OrderedThreadPoolExecutor 线程池执行过程分析：
+ *
+ * 1.线程池被关闭了的话，execute 直接拒绝任务的提交
+ * 2.通过 execute 方法传入的 IoEvent 被保存到 session 对应的 taskQueue 中
+ * 3.将当前 session 保存到 waitingSessions 中
+ * 4.如果线程池中线程数目为 0（workers.isEmpty）或者线程池中活跃线程数目为 0（idleWorkers.isEmpty），添加一个 worker 线程
+ * 5.某一个 worker 线程从 waitingSessions 中 poll 一个 session，然后获取此 session 上的所有任务进行处理，不断循环，只有任务全部处理完毕
+ *   之后，其他的线程才可能从 waitingSessions 中也 poll 到 session，否则其它线程只能阻塞在 waitingSessions.poll 方法上。这个
+ *   session 就类似于一个锁，只有线程获取到了这个 session 锁，才能处理任务队列，这样就保证了同一时刻只有一个线程能处理 taskQueue
+ *   中的所有任务，保证了事件顺序执行，即 exclusive 和 never mixed up
+ * 6.如果当前线程处于空闲状态（获取到 session = null），相当于没有获取到锁，如果当前线程数量超过 corePoolSize 的话，那么就直接退出，并且
+ *   将此 worker 线程从线程池中删除
  *
  * @author <a href="http://mina.apache.org">Apache MINA Project</a>
  * @org.apache.xbean.XBean
@@ -334,7 +348,8 @@ public class OrderedThreadPoolExecutor extends ThreadPoolExecutor {
     }
 
     /**
-     * 当 workers.wait
+     * 当 workers.wait 方法被唤醒之后就去检查是否还有 worker 线程存在，如果 worker 线程全部关闭（workers.isEmpty），
+     * 那么就说明线程池已经处于 TERMINATED 状态，退出 loop
      *
      * {@inheritDoc}
      */
@@ -394,6 +409,8 @@ public class OrderedThreadPoolExecutor extends ThreadPoolExecutor {
         }
 
         shutdown = true;
+
+        System.out.println(workers.size());
 
         // 如果线程池已经 shutdown 了，当前线程池中还有多少个线程，就添加多个 EXIT_SIGNAL 到其中，这样每一个线程都可能
         // 获取到 EXIT_SIGNAL，从而退出 loop，并且从线程池中移除掉（准确地说是从 workers 中移除掉）。
@@ -543,6 +560,7 @@ public class OrderedThreadPoolExecutor extends ThreadPoolExecutor {
         }
 
         // 当 processingCompleted 为 true 时，offerSession 也为 true，可以把当前的 session 添加到 waitingSessions 中
+        // session 类似于一个锁，只有获取到了这个锁的线程才能处理其任务队列中的任务
         if (offerSession) {
             // As the tasksQueue was empty, the task has been executed immediately, so we can move the session to
             // the queue of sessions waiting for completion.
