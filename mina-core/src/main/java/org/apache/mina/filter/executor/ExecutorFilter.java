@@ -35,7 +35,16 @@ import org.apache.mina.core.session.IoSession;
 import org.apache.mina.core.write.WriteRequest;
 
 /**
+ * 在 ExecutionFilter 添加到 filterChain 中之后，以下几个事件会传播到 ExecutionFilter 中：
+ * sessionOpened、sessionClosed、sessionIdle、exceptionCaught、messageReceived、
+ * messageSent、filterClose 和 filterWrite。这些事件传播到 ExecutionFilter 之后，会被
+ * 封装成 IoFilterEvent 对象，然后放入到线程池中由线程池的线程去处理。而 Mina 的 I/O 线程
+ * 可以继续处理其它 session select 出来的 OP_WRITE/OP_READ 等事件，不用在 filter 上浪费
+ * 时间。
  *
+ * 在线程池中，当一个线程从任务队列中获取到 IoFilterEvent 对象，调用其 run 方法时，会最终调用
+ * IoFilterEvent 的 fire 方法，继续调用 nextFilter.filterXXX 方法直到调用用户定义的 handler
+ * 来处理业务数据。
  *
  * A filter that forwards I/O events to {@link Executor} to enforce a certain
  * thread model while allowing the events per session to be processed

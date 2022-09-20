@@ -79,6 +79,9 @@ import org.slf4j.LoggerFactory;
  * 6.如果当前线程处于空闲状态（获取到 session = null），相当于没有获取到锁，如果当前线程数量超过 corePoolSize 的话，那么就直接退出，并且
  *   将此 worker 线程从线程池中删除
  *
+ * OrderedThreadPoolExecutor 线程池保证了不同的 session 上的 IoEvent 由不同的线程来处理，同时保证了一个 session 在某一时刻只有一个
+ * 线程来执行。
+ *
  * @author <a href="http://mina.apache.org">Apache MINA Project</a>
  * @org.apache.xbean.XBean
  */
