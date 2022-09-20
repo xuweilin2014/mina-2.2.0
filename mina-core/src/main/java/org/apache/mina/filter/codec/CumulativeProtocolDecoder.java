@@ -225,7 +225,8 @@ public abstract class CumulativeProtocolDecoder extends ProtocolDecoderAdapter {
             if (usingSessionBuffer && buf.isAutoExpand()) {
                 buf.compact();
             } else {
-                // 如果 buf 不是从 session 中获取到的，将 buf 保存到 session 中
+                // 如果 buf 不是从 session 中获取到的，那么 buf 就是在 filterChain 中使用的 in 这个 buffer，考虑到后面的 filter 可能会对其进行更改，
+                // 因此将 buf 保存到 session 中
                 storeRemainingInSession(buf, session);
             }
 
