@@ -55,6 +55,7 @@ import java.util.Set;
  * @author <a href="http://mina.apache.org">Apache MINA Project</a>
  * @see IoBufferAllocator
  */
+@SuppressWarnings("DuplicatedCode")
 public abstract class AbstractIoBuffer extends IoBuffer {
     /** Tells if a buffer has been created from an existing buffer */
     private final boolean derived;
@@ -164,6 +165,8 @@ public abstract class AbstractIoBuffer extends IoBuffer {
     }
 
     /**
+     * 生成一个新的容量为 newCapacity 大小的 buf
+     *
      * {@inheritDoc}
      */
     @Override
@@ -176,18 +179,21 @@ public abstract class AbstractIoBuffer extends IoBuffer {
         if (newCapacity > capacity()) {
             // Expand:
             //// Save the state.
+            // 记录旧的 buf 的 pos 和 limit 以及 ByteOrder 值
             int pos = position();
             int limit = limit();
             ByteOrder bo = order();
 
             //// Reallocate.
             ByteBuffer oldBuf = buf();
+            // 调用 ByteBuffer.allocate 方法，在堆上分配一个 newCapacity 大小的 buffer
             ByteBuffer newBuf = getAllocator().allocateNioBuffer(newCapacity, isDirect());
             oldBuf.clear();
             newBuf.put(oldBuf);
             buf(newBuf);
 
             //// Restore the state.
+            // 将旧的 buf 的状态设置到新的 buf 中
             buf().limit(limit);
             if (mark >= 0) {
                 buf().position(mark);
@@ -268,21 +274,25 @@ public abstract class AbstractIoBuffer extends IoBuffer {
         return expand(pos, expectedRemaining, false);
     }
 
+    // 扩充 buf 的空间，使得其可以多容纳 expectedRemaining 个字节的数据
     private IoBuffer expand(int pos, int expectedRemaining, boolean autoExpand) {
         if (!recapacityAllowed) {
             throw new IllegalStateException("Derived buffers and their parent can't be expanded.");
         }
 
+        // 新的 buf 至少要有 end 个字节的空间容纳数据
         int end = pos + expectedRemaining;
         int newCapacity;
 
         if (autoExpand) {
+            // 规整 end，找到第一个大于 end 且满足 2^n 的大小，作为新的 capacity
             newCapacity = IoBuffer.normalizeCapacity(end);
         } else {
             newCapacity = end;
         }
         if (newCapacity > capacity()) {
             // The buffer needs expansion.
+            // 生成一个新的容量为 newCapacity 大小的 buf，并且把旧 buf 中的数据拷贝到其中
             capacity(newCapacity);
         }
 
@@ -1921,12 +1931,14 @@ public abstract class AbstractIoBuffer extends IoBuffer {
      */
     @Override
     public String getPrefixedString(int prefixLength, CharsetDecoder decoder) throws CharacterCodingException {
+        // 如果现在还没有接收到完整的报文信息，就直接抛出一个异常
         if (!prefixedDataAvailable(prefixLength)) {
             throw new BufferUnderflowException();
         }
 
         int fieldSize = 0;
 
+        // 将数据字段的长度直接赋值给 fieldSize
         switch (prefixLength) {
         case 1:
             fieldSize = getUnsigned();
@@ -1961,6 +1973,12 @@ public abstract class AbstractIoBuffer extends IoBuffer {
         limit(end);
         decoder.reset();
 
+        /*
+         * 和 decoder 方法相比，encoder 相对更加简单，根据 filedSize（remaining 方法实际上直接返回的就是
+         * fieldSize 值）来创建一个 buffer，然后此 buffer 用来保存解码之后的字符串。如果分配创建的 buffer
+         * 空间不够，那么就直接创建一个新的 buffer（大小在原来基础上增加 expectedLength），并且和 decoder 不同，
+         * 这里如果空间不够，可以在 for 循环中一直增加。
+         */
         int expectedLength = (int) (remaining() * decoder.averageCharsPerByte()) + 1;
         CharBuffer out = CharBuffer.allocate(expectedLength);
         for (;;) {
@@ -2024,6 +2042,9 @@ public abstract class AbstractIoBuffer extends IoBuffer {
     public IoBuffer putPrefixedString(CharSequence val, int prefixLength, int padding, byte padValue,
             CharsetEncoder encoder) throws CharacterCodingException {
         int maxLength;
+
+        // 此协议分为两部分，第一部分为：prefixLength 个字节的 length 字段，用来记录字符串数据的长度；第二个部分为字符串数据
+        // 需要预留 prefixLength 个 byte 来保存字符串的长度值，即协议的 length 长度字段
         switch (prefixLength) {
         case 1:
             maxLength = 255;
@@ -2031,6 +2052,7 @@ public abstract class AbstractIoBuffer extends IoBuffer {
         case 2:
             maxLength = 65535;
             break;
+        // 如果 length 字段为 4 个 byte 长度，那么允许的字符串的最大长度为 Integer.MAX_VALUE
         case 4:
             maxLength = Integer.MAX_VALUE;
             break;
@@ -2041,6 +2063,8 @@ public abstract class AbstractIoBuffer extends IoBuffer {
         if (val.length() > maxLength) {
             throw new IllegalArgumentException("The specified string is too long.");
         }
+
+        // 如果字符串的长度为 0，那么就直接填写 length 字段（填入 0），后面的数据字段直接忽略
         if (val.length() == 0) {
             switch (prefixLength) {
             case 1:
@@ -2056,6 +2080,7 @@ public abstract class AbstractIoBuffer extends IoBuffer {
             return this;
         }
 
+        // padMask 用来计算需要补齐多少位
         int padMask;
         switch (padding) {
         case 0:
@@ -2072,16 +2097,27 @@ public abstract class AbstractIoBuffer extends IoBuffer {
             throw new IllegalArgumentException("padding: " + padding);
         }
 
+        // 把 val 中的字符串数据保存到 CharBuffer 中，并且 pos 设置为 0，而 capacity 和 limit 设置为 val 的长度
         CharBuffer in = CharBuffer.wrap(val);
+        // 跳过 length 字段
         skip(prefixLength); // make a room for the length field
         int oldPos = position();
         encoder.reset();
 
         int expandedState = 0;
 
+        // 循环读取 in 中的数据到 buf 中，如果 in 中的数据没有读完，那么就会产生 OVERFLOW 的结果，对 buf 进行扩展，
+        // 如果 in 中的数据读取完了，那么就返回 UNDERFLOW 结果直接退出。一般来说，第一次都会产生 OVERFLOW 结果，这是
+        // 因为在 encoder 中给 buffer 分配的长度就是 value.length
         for (;;) {
             CoderResult cr;
             if (in.hasRemaining()) {
+                // The buffers are read from, and written to, starting at their current
+                // positions. At most in.remaining() characters will be read and at most out.remaining()
+                // bytes will be written. The buffers' positions will be advanced to reflect the characters
+                // read and the bytes written, but their marks and limits will not be modified.
+                // encode 方法会把 in 中的字符串拷贝到 buf 中，如果返回 UNDERFLOW 说明 in 中没有多余的数据需要拷贝，
+                // 如果返回 OVERFLOW 说明 in 中还有数据，但是 buf 中空间不够
                 cr = encoder.encode(in, buf(), true);
             } else {
                 cr = encoder.flush(buf());
@@ -2091,13 +2127,20 @@ public abstract class AbstractIoBuffer extends IoBuffer {
                 throw new IllegalArgumentException("The specified string is too long.");
             }
 
+            // 如果 cr 的结果是 UNDERFLOW，那么说明 in 中的数据已经被全部保存到 buf 中
             if (cr.isUnderflow()) {
                 break;
             }
+
+            // 如果 cr 的结果是 OVERFLOW，那么说明 buf 的空间不够，需要进行扩展。并且从 expandedState 这个变量可知，空间只会
+            // 扩展两次，如果扩展两次之后 buf 还是不够，那么就会抛出异常
             if (cr.isOverflow()) {
                 if (isAutoExpand()) {
                     switch (expandedState) {
                     case 0:
+                        // averageBytesPerChar 方法返回将为所提供的每个输入字符生成的平均字节数。因此，试探值用于估计给定
+                        // 输入序列所需的输出缓冲区的大小。Math.ceil 用于向上取整，ceil(1.6) = 2
+                        // 传入剩余字符数据所需要的空间后，autoExpand 会对 buf 空间进行扩展
                         autoExpand((int) Math.ceil(in.remaining() * encoder.averageBytesPerChar()));
                         expandedState++;
                         break;
@@ -2108,7 +2151,8 @@ public abstract class AbstractIoBuffer extends IoBuffer {
                     default:
                         throw new RuntimeException(
                                 "Expanded by " + (int) Math.ceil(in.remaining() * encoder.maxBytesPerChar())
-                                        + " but that wasn't enough for '" + val + "'");
+                                        + " but that wasn't enough for '" + val + "'"
+                        );
                     }
                     continue;
                 }
@@ -2119,8 +2163,17 @@ public abstract class AbstractIoBuffer extends IoBuffer {
         }
 
         // Write the length field
+        // 在把 in 中数据保存到了 buf 中后，还需要进行字节对齐操作。具体需要对其多少个字节由以下几个步骤计算：
+        // 1.position() - oldPos：计算出 buf 中数据的长度
+        // 2.len & padMask：这里要说明 M mod 2^n = M & (2^n - 1)，所以 len & padMask 相当于求出 len mod padding
+        // 3.padding - mod：最后 padding 减去余数，得到需要补齐的字节数
+        // 以 pos = 4，oldPos = 13，padding = 4，padMask = (2^2 - 1) 为例进行说明
+        // oldPos - pos 为 9，说明所有数据的长度为 9，而字节需要以 4 字节对齐，可以直观看出，还需要补齐 3 个字节，数据长度
+        // 才能是 4 的倍数。具体计算过程为：9 & 3 = 1，而 padding - 1 = 3，最后需要补齐 3 个字节
         fill(padValue, padding - (position() - oldPos & padMask));
         int length = position() - oldPos;
+
+        // 在补齐好字节后，最后把 length 保存到 len 字段中
         switch (prefixLength) {
         case 1:
             put(oldPos - 1, (byte) length);
@@ -2253,6 +2306,7 @@ public abstract class AbstractIoBuffer extends IoBuffer {
      */
     @Override
     public boolean prefixedDataAvailable(int prefixLength, int maxDataLength) {
+        // 如果 remaining() 字段都小于 prefixLength，那么说明连 length 字段都没有完全接收到
         if (remaining() < prefixLength) {
             return false;
         }
@@ -2266,6 +2320,7 @@ public abstract class AbstractIoBuffer extends IoBuffer {
             dataLength = getUnsignedShort(position());
             break;
         case 4:
+            // 获取到字符串数据的长度
             dataLength = getInt(position());
             break;
         default:
@@ -2276,6 +2331,7 @@ public abstract class AbstractIoBuffer extends IoBuffer {
             throw new BufferDataException("dataLength: " + dataLength);
         }
 
+        // 判断 remaining 是否大于等于 dataLength + prefixLength 长度，即是不是一个完整的报文信息
         return remaining() - prefixLength >= dataLength;
     }
 
@@ -2324,6 +2380,14 @@ public abstract class AbstractIoBuffer extends IoBuffer {
     @Override
     public IoBuffer fill(byte value, int size) {
         autoExpand(size);
+
+        // 在当前 buf 中，从 pos 位置开始，填充 size 个 value 到 buf 里面，
+        // 首先将 size 除以 8 得到 q，如果 q 不为 0 的话，说明可以填充 q 个 long 数据（long = 8 byte）到 buf 中，
+        // 并且在填充时，会对 value 进行处理，比如 value = 0x80，那么最后进行填充的 longValue 为 0x80 80 80 80 80 80 80 80，
+        // r 则表示还剩下多少个字节数据。接下来就是看可以填充多少个 int 数据（4 字节），多少个 short 数据（2 字节），最后填充
+        // byte 数据。
+        // 这样，先 long，再 int，再 short，最后再 byte，可以节省填充时间，提高效率
+
         int q = size >>> 3;
         int r = size & 7;
 
