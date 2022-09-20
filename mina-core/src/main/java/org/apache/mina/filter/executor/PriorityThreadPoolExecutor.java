@@ -543,6 +543,8 @@ public class PriorityThreadPoolExecutor extends ThreadPoolExecutor {
             // As the tasksQueue was empty, the task has been executed
             // immediately, so we can move the session to the queue
             // of sessions waiting for completion.
+            // 在把 session 添加到 waitingSessions 中时，需要将其封装成 SessionEntry 对象
+            // SessionEntry 对象实现了 Comparable 接口，因此可以进行排序
             waitingSessions.offer(new SessionEntry(session, comparator));
         }
 
@@ -780,6 +782,7 @@ public class PriorityThreadPoolExecutor extends ThreadPoolExecutor {
                     }
 
                     try {
+                        // 从 waitingSessions 对象中获取到 SessionEntry 对象，waitingSessions 中的 session 进行了排序
                         entry = waitingSessions.poll(waitTime, TimeUnit.MILLISECONDS);
                         break;
                     } finally {
@@ -849,8 +852,7 @@ public class PriorityThreadPoolExecutor extends ThreadPoolExecutor {
     }
 
     /**
-     * A class used to preserve first-in-first-out order of sessions that have equal
-     * priority.
+     * A class used to preserve first-in-first-out order of sessions that have equal priority.
      */
     static class SessionEntry implements Comparable<SessionEntry> {
         private final long seqNum;
