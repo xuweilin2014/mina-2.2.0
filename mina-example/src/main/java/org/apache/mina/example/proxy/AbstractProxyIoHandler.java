@@ -20,6 +20,8 @@
 package org.apache.mina.example.proxy;
 
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.util.Date;
 
 import org.apache.mina.core.buffer.IoBuffer;
 import org.apache.mina.core.service.IoHandlerAdapter;
@@ -34,7 +36,7 @@ import org.slf4j.LoggerFactory;
  * @author <a href="http://mina.apache.org">Apache MINA Project</a>
  */
 public abstract class AbstractProxyIoHandler extends IoHandlerAdapter {
-    private static final Charset CHARSET = Charset.forName("iso8859-1");
+    private static final Charset CHARSET = StandardCharsets.UTF_8;
     public static final String OTHER_IO_SESSION = AbstractProxyIoHandler.class.getName()+".OtherIoSession";
 
     private final static Logger LOGGER = LoggerFactory.getLogger(AbstractProxyIoHandler.class);
@@ -62,6 +64,9 @@ public abstract class AbstractProxyIoHandler extends IoHandlerAdapter {
     }
 
     /**
+     * messageReceived 既可以用来处理客户端发送的请求，也可以处理服务端发送过来的请求，
+     * 并且通过 OTHER_IO_SESSION 来获取另外一方的 session 连接，把数据转发过去
+     *
      * {@inheritDoc}
      */
     @Override
